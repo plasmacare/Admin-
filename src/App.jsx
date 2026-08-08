@@ -1,6 +1,6 @@
 import { useAuth } from './lib/auth.jsx'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
+import AdminShell from './components/AdminShell'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -9,5 +9,5 @@ export default function App() {
     return <div className="admin-splash">Loading…</div>
   }
 
-  return session ? <Dashboard /> : <Login />
+  return session ? <AdminShell /> : <Login />
 }
