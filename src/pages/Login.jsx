@@ -16,7 +16,7 @@ export default function Login() {
     try {
       await login(email, password)
     } catch (err) {
-      setError(err.message === 'Invalid login credentials' ? 'Email ya password galat hai.' : err.message)
+      setError(err.message === 'Invalid login credentials' ? 'Incorrect email or password.' : err.message)
     } finally {
       setBusy(false)
     }

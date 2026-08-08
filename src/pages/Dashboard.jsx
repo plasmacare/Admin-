@@ -54,7 +54,7 @@ export default function Dashboard() {
       })
       setBookings(data)
     } catch (err) {
-      setError(err.message || 'Bookings load nahi ho paayi.')
+      setError(err.message || 'Could not load bookings.')
     } finally {
       setLoading(false)
     }
@@ -89,7 +89,7 @@ export default function Dashboard() {
     try {
       await updateBookingStatus(booking.id, newStatus)
     } catch (err) {
-      setError('Status update fail ho gaya: ' + err.message)
+      setError('Failed to update status: ' + err.message)
       load()
     }
   }
@@ -99,7 +99,7 @@ export default function Dashboard() {
     try {
       await updateBookingStaff(booking.id, staffName)
     } catch (err) {
-      setError('Staff assign fail ho gaya: ' + err.message)
+      setError('Failed to assign staff: ' + err.message)
     }
   }
 
@@ -108,7 +108,7 @@ export default function Dashboard() {
     try {
       await updateCallStatus(booking.id, status)
     } catch (err) {
-      setError('Call status update fail ho gaya: ' + err.message)
+      setError('Failed to update call status: ' + err.message)
       load()
     }
   }
@@ -118,7 +118,7 @@ export default function Dashboard() {
     try {
       await updateAdminNotes(booking.id, notes)
     } catch (err) {
-      setError('Notes save nahi hui: ' + err.message)
+      setError('Could not save notes: ' + err.message)
     }
   }
 
@@ -128,7 +128,7 @@ export default function Dashboard() {
     try {
       await setSpamFlag(booking.id, next)
     } catch (err) {
-      setError('Spam flag update fail ho gaya: ' + err.message)
+      setError('Failed to update spam flag: ' + err.message)
       load()
     }
   }
@@ -138,7 +138,7 @@ export default function Dashboard() {
       const url = await uploadReport(booking.id, file)
       patch(booking.id, { report_url: url, report_status: 'uploaded' })
     } catch (err) {
-      setError('Report upload fail ho gaya: ' + err.message)
+      setError('Failed to upload report: ' + err.message)
     }
   }
 
@@ -147,7 +147,7 @@ export default function Dashboard() {
       await skipReport(booking.id)
       patch(booking.id, { report_status: 'skipped', report_url: null })
     } catch (err) {
-      setError('Report skip fail ho gaya: ' + err.message)
+      setError('Failed to skip report: ' + err.message)
     }
   }
 
@@ -156,7 +156,7 @@ export default function Dashboard() {
       await resetReport(booking.id)
       patch(booking.id, { report_status: 'pending', report_url: null })
     } catch (err) {
-      setError('Reset fail ho gaya: ' + err.message)
+      setError('Failed to reset report: ' + err.message)
     }
   }
 
@@ -212,7 +212,7 @@ export default function Dashboard() {
 
       {error && <p className="admin-error">{error}</p>}
       {loading && <p className="admin-loading">Loading bookings…</p>}
-      {!loading && filtered.length === 0 && <p className="admin-empty">Is filter ke liye koi booking nahi mili.</p>}
+      {!loading && filtered.length === 0 && <p className="admin-empty">No bookings found for this filter.</p>}
 
       <div className="admin-list">
         {filtered.map((b) => (
@@ -340,7 +340,7 @@ function BookingCard({
             Admin notes
             <textarea
               defaultValue={booking.admin_notes || ''}
-              placeholder="Internal note (customer isko nahi dekhega)"
+              placeholder="Internal note (the customer will not see this)"
               rows={2}
               onBlur={(e) => onNotes(e.target.value)}
             />

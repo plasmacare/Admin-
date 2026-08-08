@@ -31,15 +31,20 @@ export default function CatalogTab() {
 
 function PackagesPanel() {
   const [items, setItems] = useState([])
+  const [tests, setTests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
+  const [description, setDescription] = useState('')
+  const [expandedId, setExpandedId] = useState(null)
 
   async function load() {
     setLoading(true)
     try {
-      setItems(await fetchPackages())
+      const [pkgs, testList] = await Promise.all([fetchPackages(), fetchTests()])
+      setItems(pkgs)
+      setTests(testList)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -52,9 +57,10 @@ function PackagesPanel() {
     e.preventDefault()
     if (!name.trim() || !price) return
     try {
-      await addPackage({ name: name.trim(), price: Number(price) })
+      await addPackage({ name: name.trim(), price: Number(price), description: description.trim() })
       setName('')
       setPrice('')
+      setDescription('')
       load()
     } catch (err) {
       setError(err.message)
@@ -71,8 +77,14 @@ function PackagesPanel() {
     }
   }
 
+  async function handleToggleTest(item, testId) {
+    const current = item.included_tests || []
+    const next = current.includes(testId) ? current.filter((id) => id !== testId) : [...current, testId]
+    await handleField(item, 'included_tests', next)
+  }
+
   async function handleDelete(item) {
-    if (!confirm(`"${item.name}" delete karein?`)) return
+    if (!confirm(`"${item.name}" delete this?`)) return
     try {
       await deletePackage(item.id)
       load()
@@ -83,9 +95,10 @@ function PackagesPanel() {
 
   return (
     <div className="catalog-panel">
-      <form className="catalog-add-form" onSubmit={handleAdd}>
+      <form className="catalog-add-form catalog-add-form--package" onSubmit={handleAdd}>
         <input placeholder="Package name" value={name} onChange={(e) => setName(e.target.value)} />
         <input placeholder="Price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
+        <input placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
         <button type="submit" className="btn btn--primary">Add</button>
       </form>
       {error && <p className="admin-error">{error}</p>}
@@ -94,32 +107,62 @@ function PackagesPanel() {
       ) : (
         <div className="catalog-list">
           {items.map((item) => (
-            <div key={item.id} className={`catalog-row${item.is_active ? '' : ' catalog-row--inactive'}`}>
-              <input
-                className="catalog-row__name"
-                defaultValue={item.name}
-                onBlur={(e) => e.target.value !== item.name && handleField(item, 'name', e.target.value)}
-              />
-              <input
-                className="catalog-row__price"
-                type="number"
-                defaultValue={item.price}
-                onBlur={(e) => Number(e.target.value) !== item.price && handleField(item, 'price', Number(e.target.value))}
-              />
-              <label className="catalog-row__active">
+            <div key={item.id} className={`catalog-card${item.is_active ? '' : ' catalog-row--inactive'}`}>
+              <div className="catalog-row">
                 <input
-                  type="checkbox"
-                  checked={item.is_active}
-                  onChange={(e) => handleField(item, 'is_active', e.target.checked)}
+                  className="catalog-row__name"
+                  defaultValue={item.name}
+                  onBlur={(e) => e.target.value !== item.name && handleField(item, 'name', e.target.value)}
                 />
-                Active
-              </label>
-              <button type="button" className="catalog-row__delete" onClick={() => handleDelete(item)}>
-                Delete
+                <input
+                  className="catalog-row__price"
+                  type="number"
+                  defaultValue={item.price}
+                  onBlur={(e) => Number(e.target.value) !== item.price && handleField(item, 'price', Number(e.target.value))}
+                />
+                <label className="catalog-row__active">
+                  <input
+                    type="checkbox"
+                    checked={item.is_active}
+                    onChange={(e) => handleField(item, 'is_active', e.target.checked)}
+                  />
+                  Active
+                </label>
+                <button type="button" className="catalog-row__delete" onClick={() => handleDelete(item)}>
+                  Delete
+                </button>
+              </div>
+              <input
+                className="catalog-card__description"
+                defaultValue={item.description || ''}
+                placeholder="Description"
+                onBlur={(e) => e.target.value !== item.description && handleField(item, 'description', e.target.value)}
+              />
+              <button
+                type="button"
+                className="catalog-card__expand"
+                onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+              >
+                Included tests ({(item.included_tests || []).length}) {expandedId === item.id ? '▲' : '▼'}
               </button>
+              {expandedId === item.id && (
+                <div className="catalog-card__tests">
+                  {tests.map((t) => (
+                    <label key={t.id} className="catalog-card__test-item">
+                      <input
+                        type="checkbox"
+                        checked={(item.included_tests || []).includes(t.id)}
+                        onChange={() => handleToggleTest(item, t.id)}
+                      />
+                      {t.name}
+                    </label>
+                  ))}
+                  {tests.length === 0 && <p className="admin-empty">Add individual tests first.</p>}
+                </div>
+              )}
             </div>
           ))}
-          {items.length === 0 && <p className="admin-empty">Koi package nahi hai abhi.</p>}
+          {items.length === 0 && <p className="admin-empty">No packages yet.</p>}
         </div>
       )}
     </div>
@@ -171,7 +214,7 @@ function TestsPanel() {
   }
 
   async function handleDelete(item) {
-    if (!confirm(`"${item.name}" delete karein?`)) return
+    if (!confirm(`"${item.name}" delete this?`)) return
     try {
       await deleteTest(item.id)
       load()
@@ -225,7 +268,7 @@ function TestsPanel() {
               </button>
             </div>
           ))}
-          {items.length === 0 && <p className="admin-empty">Koi test nahi hai abhi.</p>}
+          {items.length === 0 && <p className="admin-empty">No tests yet.</p>}
         </div>
       )}
     </div>
