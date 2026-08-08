@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useAuth } from '../lib/auth.jsx'
-import { fetchLookups, fetchBookings, updateBookingStatus, updateBookingStaff, computeStats, STATUSES } from '../lib/adminData'
-import logoIcon from '../assets/logo-icon.png'
+import {
+  fetchLookups, fetchBookings, updateBookingStatus, updateBookingStaff,
+  updateCallStatus, updateAdminNotes, setSpamFlag, uploadReport, skipReport, resetReport,
+  computeStats, computeSpamFlags, STATUSES,
+} from '../lib/adminData'
+import { exportBookingsCsv } from '../lib/csvExport'
 
 function formatLocalDate(d) {
   const y = d.getFullYear()
@@ -18,9 +21,14 @@ const STATUS_LABEL = {
   completed: 'Completed',
   cancelled: 'Cancelled',
 }
+const CALL_STATUS_LABEL = {
+  not_called: 'Not called',
+  called: 'Called',
+  no_answer: "Didn't answer",
+  callback_later: 'Callback later',
+}
 
 export default function Dashboard() {
-  const { logout } = useAuth()
   const [lookups, setLookups] = useState({ packagesById: {}, testsById: {}, slotsById: {} })
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -29,6 +37,7 @@ export default function Dashboard() {
   const [showAllDates, setShowAllDates] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [hideSpam, setHideSpam] = useState(true)
   const [expandedId, setExpandedId] = useState(null)
 
   useEffect(() => {
@@ -56,18 +65,27 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, statusFilter, showAllDates])
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return bookings
-    const q = search.trim().toLowerCase()
-    return bookings.filter(
-      (b) => b.customer_name?.toLowerCase().includes(q) || b.customer_phone?.includes(q)
-    )
-  }, [bookings, search])
+  const flagged = useMemo(() => computeSpamFlags(bookings), [bookings])
 
-  const stats = useMemo(() => computeStats(bookings), [bookings])
+  const filtered = useMemo(() => {
+    let list = flagged
+    if (hideSpam) list = list.filter((b) => !b.is_spam)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter((b) => b.customer_name?.toLowerCase().includes(q) || b.customer_phone?.includes(q))
+    }
+    return list
+  }, [flagged, hideSpam, search])
+
+  const stats = useMemo(() => computeStats(bookings.filter((b) => !b.is_spam)), [bookings])
+  const spamCount = useMemo(() => flagged.filter((b) => b.is_spam || b.spamReasons.length > 0).length, [flagged])
+
+  function patch(id, fields) {
+    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...fields } : b)))
+  }
 
   async function handleStatusChange(booking, newStatus) {
-    setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status: newStatus } : b)))
+    patch(booking.id, { status: newStatus })
     try {
       await updateBookingStatus(booking.id, newStatus)
     } catch (err) {
@@ -77,7 +95,7 @@ export default function Dashboard() {
   }
 
   async function handleStaffChange(booking, staffName) {
-    setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, assigned_staff: staffName } : b)))
+    patch(booking.id, { assigned_staff: staffName })
     try {
       await updateBookingStaff(booking.id, staffName)
     } catch (err) {
@@ -85,16 +103,65 @@ export default function Dashboard() {
     }
   }
 
-  return (
-    <div className="admin">
-      <header className="admin-header">
-        <div className="admin-header__brand">
-          <img src={logoIcon} alt="" />
-          <span>Plasma Care Admin</span>
-        </div>
-        <button className="btn btn--ghost" onClick={logout}>Logout</button>
-      </header>
+  async function handleCallStatus(booking, status) {
+    patch(booking.id, { call_status: status })
+    try {
+      await updateCallStatus(booking.id, status)
+    } catch (err) {
+      setError('Call status update fail ho gaya: ' + err.message)
+      load()
+    }
+  }
 
+  async function handleNotes(booking, notes) {
+    patch(booking.id, { admin_notes: notes })
+    try {
+      await updateAdminNotes(booking.id, notes)
+    } catch (err) {
+      setError('Notes save nahi hui: ' + err.message)
+    }
+  }
+
+  async function handleSpamToggle(booking) {
+    const next = !booking.is_spam
+    patch(booking.id, { is_spam: next })
+    try {
+      await setSpamFlag(booking.id, next)
+    } catch (err) {
+      setError('Spam flag update fail ho gaya: ' + err.message)
+      load()
+    }
+  }
+
+  async function handleReportUpload(booking, file) {
+    try {
+      const url = await uploadReport(booking.id, file)
+      patch(booking.id, { report_url: url, report_status: 'uploaded' })
+    } catch (err) {
+      setError('Report upload fail ho gaya: ' + err.message)
+    }
+  }
+
+  async function handleReportSkip(booking) {
+    try {
+      await skipReport(booking.id)
+      patch(booking.id, { report_status: 'skipped', report_url: null })
+    } catch (err) {
+      setError('Report skip fail ho gaya: ' + err.message)
+    }
+  }
+
+  async function handleReportReset(booking) {
+    try {
+      await resetReport(booking.id)
+      patch(booking.id, { report_status: 'pending', report_url: null })
+    } catch (err) {
+      setError('Reset fail ho gaya: ' + err.message)
+    }
+  }
+
+  return (
+    <div className="bookings-tab">
       <div className="admin-stats">
         <StatCard label={showAllDates ? 'Bookings' : "Today's Bookings"} value={stats.total} />
         <StatCard label="Pending" value={stats.pending} accent="pending" />
@@ -128,12 +195,24 @@ export default function Dashboard() {
         />
       </div>
 
+      <div className="admin-toolbar">
+        <label className="admin-filters__all">
+          <input type="checkbox" checked={hideSpam} onChange={(e) => setHideSpam(e.target.checked)} />
+          Hide flagged/spam {spamCount > 0 ? `(${spamCount})` : ''}
+        </label>
+        <button
+          type="button"
+          className="btn btn--secondary"
+          onClick={() => exportBookingsCsv(filtered, lookups)}
+          disabled={filtered.length === 0}
+        >
+          Export CSV
+        </button>
+      </div>
+
       {error && <p className="admin-error">{error}</p>}
       {loading && <p className="admin-loading">Loading bookings…</p>}
-
-      {!loading && filtered.length === 0 && (
-        <p className="admin-empty">Is filter ke liye koi booking nahi mili.</p>
-      )}
+      {!loading && filtered.length === 0 && <p className="admin-empty">Is filter ke liye koi booking nahi mili.</p>}
 
       <div className="admin-list">
         {filtered.map((b) => (
@@ -145,6 +224,12 @@ export default function Dashboard() {
             onToggle={() => setExpandedId(expandedId === b.id ? null : b.id)}
             onStatusChange={(s) => handleStatusChange(b, s)}
             onStaffChange={(s) => handleStaffChange(b, s)}
+            onCallStatus={(s) => handleCallStatus(b, s)}
+            onNotes={(n) => handleNotes(b, n)}
+            onSpamToggle={() => handleSpamToggle(b)}
+            onReportUpload={(f) => handleReportUpload(b, f)}
+            onReportSkip={() => handleReportSkip(b)}
+            onReportReset={() => handleReportReset(b)}
           />
         ))}
       </div>
@@ -161,17 +246,24 @@ function StatCard({ label, value, accent }) {
   )
 }
 
-function BookingCard({ booking, lookups, expanded, onToggle, onStatusChange, onStaffChange }) {
+function BookingCard({
+  booking, lookups, expanded, onToggle, onStatusChange, onStaffChange,
+  onCallStatus, onNotes, onSpamToggle, onReportUpload, onReportSkip, onReportReset,
+}) {
   const { packagesById, testsById, slotsById } = lookups
   const slot = slotsById[booking.slot_id]
   const packageNames = (booking.selected_packages || []).map((id) => packagesById[id]?.name).filter(Boolean)
   const testNames = (booking.selected_tests || []).map((id) => testsById[id]?.name).filter(Boolean)
+  const isFlagged = booking.spamReasons?.length > 0
 
   return (
-    <div className={`booking-card status--${booking.status}`}>
+    <div className={`booking-card status--${booking.status}${booking.is_spam ? ' booking-card--spam' : ''}`}>
       <button type="button" className="booking-card__summary" onClick={onToggle}>
         <div className="booking-card__main">
-          <span className="booking-card__name">{booking.customer_name || 'Unnamed'}</span>
+          <span className="booking-card__name">
+            {booking.customer_name || 'Unnamed'}
+            {isFlagged && <span className="spam-dot" title={booking.spamReasons.join(', ')}>⚠</span>}
+          </span>
           <span className="booking-card__meta">
             {booking.customer_phone} · {booking.scheduled_date}
             {slot ? ` · ${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}` : ''}
@@ -185,6 +277,11 @@ function BookingCard({ booking, lookups, expanded, onToggle, onStatusChange, onS
 
       {expanded && (
         <div className="booking-card__details">
+          {isFlagged && (
+            <div className="spam-banner">
+              Possible spam: {booking.spamReasons.join(', ')}
+            </div>
+          )}
           <DetailRow label="Type" value={booking.booking_type === 'home_collection' ? 'Home Collection' : 'Lab Visit'} />
           {(packageNames.length > 0 || testNames.length > 0) && (
             <DetailRow label="Tests / Packages" value={[...packageNames, ...testNames].join(', ') || '—'} />
@@ -217,11 +314,85 @@ function BookingCard({ booking, lookups, expanded, onToggle, onStatusChange, onS
             </label>
           </div>
 
-          <a className="btn btn--secondary btn--block" href={`tel:${booking.customer_phone}`}>
-            Call customer
-          </a>
+          <div className="booking-card__controls">
+            <label>
+              Call status
+              <select value={booking.call_status || 'not_called'} onChange={(e) => onCallStatus(e.target.value)}>
+                {Object.keys(CALL_STATUS_LABEL).map((k) => (
+                  <option key={k} value={k}>{CALL_STATUS_LABEL[k]}</option>
+                ))}
+              </select>
+            </label>
+            <a className="btn btn--secondary" href={`tel:${booking.customer_phone}`} style={{ alignSelf: 'flex-end' }}>
+              Call
+            </a>
+          </div>
+
+          <ReportControl
+            status={booking.report_status || 'pending'}
+            url={booking.report_url}
+            onUpload={onReportUpload}
+            onSkip={onReportSkip}
+            onReset={onReportReset}
+          />
+
+          <label className="booking-card__notes">
+            Admin notes
+            <textarea
+              defaultValue={booking.admin_notes || ''}
+              placeholder="Internal note (customer isko nahi dekhega)"
+              rows={2}
+              onBlur={(e) => onNotes(e.target.value)}
+            />
+          </label>
+
+          <button type="button" className={`spam-toggle${booking.is_spam ? ' spam-toggle--active' : ''}`} onClick={onSpamToggle}>
+            {booking.is_spam ? 'Unmark spam' : 'Mark as spam'}
+          </button>
         </div>
       )}
+    </div>
+  )
+}
+
+function ReportControl({ status, url, onUpload, onSkip, onReset }) {
+  if (status === 'uploaded' && url) {
+    return (
+      <div className="report-control">
+        <span className="detail-row__label">Report</span>
+        <div className="report-control__row">
+          <a href={url} target="_blank" rel="noreferrer" className="btn btn--secondary">View report</a>
+          <button type="button" className="btn btn--ghost" onClick={onReset}>Replace</button>
+        </div>
+      </div>
+    )
+  }
+  if (status === 'skipped') {
+    return (
+      <div className="report-control">
+        <span className="detail-row__label">Report</span>
+        <div className="report-control__row">
+          <span className="report-control__skipped">Skipped for this booking</span>
+          <button type="button" className="btn btn--ghost" onClick={onReset}>Undo</button>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="report-control">
+      <span className="detail-row__label">Report</span>
+      <div className="report-control__row">
+        <label className="btn btn--secondary report-control__upload">
+          Upload report
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            hidden
+            onChange={(e) => e.target.files[0] && onUpload(e.target.files[0])}
+          />
+        </label>
+        <button type="button" className="btn btn--ghost" onClick={onSkip}>Skip</button>
+      </div>
     </div>
   )
 }
