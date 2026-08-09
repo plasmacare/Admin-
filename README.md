@@ -91,6 +91,8 @@ One-time setup in your GitHub repo:
   a new booking comes in, as long as this tab is open (see limitations
   below). A banner at the top lets you turn notifications on, and tells
   you how to re-enable them if you accidentally blocked the site.
+  **Requires `supabase/enable_realtime.sql` to be run** — without it,
+  alerts still arrive but only via the 30-second backup poll, not instantly.
 
 ## Notification limitations (read this)
 
