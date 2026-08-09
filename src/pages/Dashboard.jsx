@@ -5,6 +5,7 @@ import {
   computeStats, computeSpamFlags, STATUSES,
 } from '../lib/adminData'
 import { exportBookingsCsv } from '../lib/csvExport'
+import MapPreview from '../components/MapPreview'
 
 function formatLocalDate(d) {
   const y = d.getFullYear()
@@ -87,7 +88,7 @@ export default function Dashboard() {
   async function handleStatusChange(booking, newStatus) {
     patch(booking.id, { status: newStatus })
     try {
-      await updateBookingStatus(booking.id, newStatus)
+      await updateBookingStatus(booking, newStatus)
     } catch (err) {
       setError('Failed to update status: ' + err.message)
       load()
@@ -287,10 +288,13 @@ function BookingCard({
             <DetailRow label="Tests / Packages" value={[...packageNames, ...testNames].join(', ') || '—'} />
           )}
           {booking.booking_type === 'home_collection' && booking.address && (
-            <DetailRow
-              label="Address"
-              value={`${booking.address.full_address}${booking.address.landmark ? ` (near ${booking.address.landmark})` : ''}`}
-            />
+            <>
+              <DetailRow
+                label="Address"
+                value={`${booking.address.full_address}${booking.address.landmark ? ` (near ${booking.address.landmark})` : ''}`}
+              />
+              <MapPreview latitude={booking.address.latitude} longitude={booking.address.longitude} />
+            </>
           )}
           <DetailRow label="Verified" value={booking.phone_verified ? 'Yes' : 'No'} />
 
