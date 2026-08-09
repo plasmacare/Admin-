@@ -2,7 +2,8 @@ export function exportBookingsCsv(bookings, lookups) {
   const { packagesById, testsById, slotsById } = lookups
   const headers = [
     'Booking ID', 'Name', 'Phone', 'Type', 'Date', 'Slot', 'Tests/Packages',
-    'Amount', 'Status', 'Call Status', 'Verified', 'Assigned Staff', 'Report Status', 'Created At',
+    'Amount', 'Status', 'Call Status', 'Verified', 'Assigned Staff', 'Report Status',
+    'Patient Name', 'Patient Age', 'Patient Gender', 'Patient Blood Group', 'Created At',
   ]
 
   const rows = bookings.map((b) => {
@@ -24,6 +25,10 @@ export function exportBookingsCsv(bookings, lookups) {
       b.phone_verified ? 'Yes' : 'No',
       b.assigned_staff || '',
       b.report_status || '',
+      b.patient_name || '',
+      b.patient_age ?? '',
+      b.patient_gender || '',
+      b.patient_blood_group || '',
       b.created_at || '',
     ]
   })
