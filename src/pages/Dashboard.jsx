@@ -297,6 +297,17 @@ function BookingCard({
             </>
           )}
           <DetailRow label="Verified" value={booking.phone_verified ? 'Yes' : 'No'} />
+          {(booking.patient_name || booking.patient_age || booking.patient_gender || booking.patient_blood_group) && (
+            <DetailRow
+              label="Patient"
+              value={[
+                booking.patient_name,
+                booking.patient_age ? `${booking.patient_age} yrs` : null,
+                booking.patient_gender,
+                booking.patient_blood_group,
+              ].filter(Boolean).join(' · ') || '—'}
+            />
+          )}
 
           <div className="booking-card__controls">
             <label>
