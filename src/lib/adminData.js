@@ -32,9 +32,17 @@ export async function fetchBookings({ date, status } = {}) {
   return (bookings || []).map((b) => ({ ...b, address: addressesByBooking[b.id] || null }))
 }
 
-export async function updateBookingStatus(id, status) {
-  const { error } = await supabase.from('bookings').update({ status }).eq('id', id)
+export async function updateBookingStatus(booking, status) {
+  const { error } = await supabase.from('bookings').update({ status }).eq('id', booking.id)
   if (error) throw error
+
+  // Keep the slot's booked_count honest: freeing it up on cancellation,
+  // and re-consuming it if a cancelled booking gets reinstated.
+  if (status === 'cancelled' && booking.status !== 'cancelled' && booking.slot_id) {
+    await supabase.rpc('decrement_slot_booking', { p_slot_id: booking.slot_id })
+  } else if (booking.status === 'cancelled' && status !== 'cancelled' && booking.slot_id) {
+    await supabase.rpc('increment_slot_booking', { p_slot_id: booking.slot_id })
+  }
 }
 
 export async function updateBookingStaff(id, assignedStaff) {
