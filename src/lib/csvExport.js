@@ -1,14 +1,13 @@
 export function exportBookingsCsv(bookings, lookups) {
-  const { packagesById, testsById, slotsById } = lookups
+  const { packagesById, testsById } = lookups
   const headers = [
-    'Booking ID', 'Name', 'Phone', 'Type', 'Date', 'Slot', 'Tests/Packages',
+    'Booking ID', 'Name', 'Phone', 'Type', 'Date', 'Tests/Packages',
     'Amount', 'Status', 'Call Status', 'Verified', 'Assigned Staff', 'Report Status',
-    'Patient Name', 'Patient Age', 'Patient Gender', 'Patient Blood Group', 'Created At',
+    'Patient Name', 'Patient Age', 'Patient Gender', 'Patient Blood Group',
+    'Has Prescription', 'Created At',
   ]
 
   const rows = bookings.map((b) => {
-    const slot = slotsById[b.slot_id]
-    const slotLabel = slot ? `${slot.start_time?.slice(0, 5)}-${slot.end_time?.slice(0, 5)}` : ''
     const packageNames = (b.selected_packages || []).map((id) => packagesById[id]?.name).filter(Boolean)
     const testNames = (b.selected_tests || []).map((id) => testsById[id]?.name).filter(Boolean)
     return [
@@ -17,7 +16,6 @@ export function exportBookingsCsv(bookings, lookups) {
       b.customer_phone || '',
       b.booking_type === 'home_collection' ? 'Home Collection' : 'Lab Visit',
       b.scheduled_date || '',
-      slotLabel,
       [...packageNames, ...testNames].join('; '),
       b.total_amount ?? '',
       b.status || '',
@@ -29,6 +27,7 @@ export function exportBookingsCsv(bookings, lookups) {
       b.patient_age ?? '',
       b.patient_gender || '',
       b.patient_blood_group || '',
+      b.prescription_url ? 'Yes' : 'No',
       b.created_at || '',
     ]
   })

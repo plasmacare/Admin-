@@ -3,15 +3,13 @@ import { supabase } from './supabase'
 export const STATUSES = ['pending', 'confirmed', 'sample_collected', 'report_ready', 'completed', 'cancelled']
 
 export async function fetchLookups() {
-  const [{ data: packages }, { data: tests }, { data: slots }] = await Promise.all([
+  const [{ data: packages }, { data: tests }] = await Promise.all([
     supabase.from('packages').select('id, name, price'),
     supabase.from('individual_tests').select('id, name, price'),
-    supabase.from('time_slots').select('id, start_time, end_time'),
   ])
   return {
     packagesById: Object.fromEntries((packages || []).map((p) => [p.id, p])),
     testsById: Object.fromEntries((tests || []).map((t) => [t.id, t])),
-    slotsById: Object.fromEntries((slots || []).map((s) => [s.id, s])),
   }
 }
 
@@ -35,14 +33,6 @@ export async function fetchBookings({ date, status } = {}) {
 export async function updateBookingStatus(booking, status) {
   const { error } = await supabase.from('bookings').update({ status }).eq('id', booking.id)
   if (error) throw error
-
-  // Keep the slot's booked_count honest: freeing it up on cancellation,
-  // and re-consuming it if a cancelled booking gets reinstated.
-  if (status === 'cancelled' && booking.status !== 'cancelled' && booking.slot_id) {
-    await supabase.rpc('decrement_slot_booking', { p_slot_id: booking.slot_id })
-  } else if (booking.status === 'cancelled' && status !== 'cancelled' && booking.slot_id) {
-    await supabase.rpc('increment_slot_booking', { p_slot_id: booking.slot_id })
-  }
 }
 
 export async function updateBookingStaff(id, assignedStaff) {
@@ -57,6 +47,11 @@ export async function updateCallStatus(id, callStatus) {
 
 export async function updateAdminNotes(id, notes) {
   const { error } = await supabase.from('bookings').update({ admin_notes: notes }).eq('id', id)
+  if (error) throw error
+}
+
+export async function updatePrescriptionNotes(id, notes) {
+  const { error } = await supabase.from('bookings').update({ prescription_notes: notes }).eq('id', id)
   if (error) throw error
 }
 
