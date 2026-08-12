@@ -489,6 +489,39 @@ body { font-family: var(--font-body); color: var(--ink); }
   text-decoration: none;
 }
 
+/* ---------- Prescription photo panel ---------- */
+.prescription-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+.prescription-panel__img {
+  max-width: 220px;
+  max-height: 240px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  object-fit: cover;
+}
+.prescription-panel__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--navy-800);
+}
+.prescription-panel__notes textarea {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 9px;
+  resize: vertical;
+}
+
 /* ---------- Notification banner ---------- */
 .notif-banner {
   background: #FFF6E5;
