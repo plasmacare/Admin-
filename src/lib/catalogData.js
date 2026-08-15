@@ -21,14 +21,96 @@ export async function deletePackage(id) {
   if (error) throw error
 }
 
+/* ---------- Margin-based package generation + approval ---------- */
+
+export const PACKAGE_TYPES = [
+  { value: 'weekday', label: 'Weekday Package' },
+  { value: 'weekend', label: 'Weekend Package' },
+  { value: 'occasional', label: 'Occasional Package' },
+  { value: 'custom', label: 'Custom Package' },
+]
+
+/**
+ * Given a set of tests and a target margin %, compute the sell price
+ * from each test's cost_price. margin% is on price (not cost), i.e.
+ * price = totalCost / (1 - margin/100). Falls back to test.price for
+ * any test missing a cost_price, in which case that test's margin
+ * can't be guaranteed — flagged in the returned object.
+ */
+export function computePackagePricing(tests, marginPercent) {
+  let totalCost = 0
+  let missingCost = false
+  for (const t of tests) {
+    if (t.cost_price == null) {
+      missingCost = true
+      totalCost += Number(t.price) || 0
+    } else {
+      totalCost += Number(t.cost_price) || 0
+    }
+  }
+  const margin = Math.max(0, Math.min(95, Number(marginPercent) || 0))
+  const price = margin > 0 ? totalCost / (1 - margin / 100) : totalCost
+  return {
+    totalCost: Math.round(totalCost * 100) / 100,
+    suggestedPrice: Math.round(price * 100) / 100,
+    marginPercent: margin,
+    missingCost, // true if some included tests have no cost_price set — margin is an estimate
+  }
+}
+
+/**
+ * Creates a new package from selected tests + a margin target.
+ * Always saved as 'pending_approval' (or 'draft' if not ready) so it
+ * never appears on the customer site until an admin approves it.
+ */
+export async function generatePackage({ name, packageType, testIds, tests, marginPercent, description, submitForApproval = true }) {
+  const selected = tests.filter((t) => testIds.includes(t.id))
+  const { suggestedPrice } = computePackagePricing(selected, marginPercent)
+  const { error } = await supabase.from('packages').insert({
+    name,
+    price: suggestedPrice,
+    description: description || null,
+    included_tests: testIds,
+    is_active: true,
+    package_type: packageType,
+    margin_percent: marginPercent,
+    auto_generated: true,
+    status: submitForApproval ? 'pending_approval' : 'draft',
+  })
+  if (error) throw error
+}
+
+export async function submitPackageForApproval(id) {
+  const { error } = await supabase.from('packages').update({ status: 'pending_approval' }).eq('id', id)
+  if (error) throw error
+}
+
+export async function approvePackage(id, approvedBy) {
+  const { error } = await supabase
+    .from('packages')
+    .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: approvedBy || null })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function rejectPackage(id) {
+  const { error } = await supabase
+    .from('packages')
+    .update({ status: 'draft', approved_at: null, approved_by: null })
+    .eq('id', id)
+  if (error) throw error
+}
+
 /* ---------- Individual tests ---------- */
 export async function fetchTests() {
   const { data, error } = await supabase.from('individual_tests').select('*').order('category').order('name')
   if (error) throw error
   return data || []
 }
-export async function addTest({ name, price, category }) {
-  const { error } = await supabase.from('individual_tests').insert({ name, price, category, is_active: true })
+export async function addTest({ name, price, category, cost_price }) {
+  const { error } = await supabase
+    .from('individual_tests')
+    .insert({ name, price, category, cost_price: cost_price ?? null, is_active: true })
   if (error) throw error
 }
 export async function updateTest(id, fields) {
