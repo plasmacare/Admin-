@@ -7,14 +7,17 @@ through the customer booking site. Uses the **same Supabase project** as
 ## One-time setup
 
 1. Open your Supabase project → **SQL Editor** → run `supabase/admin_setup.sql`,
-   then `supabase/catalog_and_reports.sql`, then `supabase/fix_public_access.sql`,
-   then `supabase/patient_details.sql`, then `supabase/enable_realtime.sql`,
-   then `supabase/prescription_and_no_slots.sql`. Together these:
+   then `supabase/catalog_and_reports.sql`, then `supabase/slot_capacity_functions.sql`,
+   then `supabase/fix_public_access.sql`, then `supabase/patient_details.sql`,
+   then `supabase/enable_realtime.sql`. Together these:
    - add `assigned_staff`, `call_status`, `is_spam`, `admin_notes`,
      `report_url`, `report_status` columns to `bookings`
-   - let logged-in staff read/update bookings, and manage packages and
-     individual tests
+   - let logged-in staff read/update bookings, and manage packages,
+     individual tests, and time slots
    - create a `reports` storage bucket for uploaded report files
+   - `slot_capacity_functions.sql` also adds two small database functions
+     so booked-slot counts update atomically and can't be double-booked
+     under concurrent requests
    - `fix_public_access.sql` restores the public (anon key) access the
      customer app needs — RLS being on for admin access otherwise blocks
      the customer site entirely
@@ -22,9 +25,6 @@ through the customer booking site. Uses the **same Supabase project** as
      fields, filled in by the customer right after OTP verification
    - `enable_realtime.sql` turns on live database events for `bookings`,
      which powers the new-booking notification
-   - `prescription_and_no_slots.sql` adds the prescription photo upload
-     fields + storage bucket, and makes `slot_id` nullable now that
-     booking is date-only (no more time slots)
 2. Supabase Dashboard → **Authentication → Users → Add user**. Create an
    email + password for each staff member who should have admin access.
    (No sign-up screen exists in this app on purpose — accounts are created
@@ -75,9 +75,6 @@ One-time setup in your GitHub repo:
   - For home collection: address **and a map with the customer's dropped
     pin**, with a link to open it in Google Maps
   - Upload a report file (PDF/image) or mark "Skip" if not applicable
-  - Prescription review — if the customer uploaded a photo of their
-    prescription instead of picking tests, it shows here with a notes
-    field to jot down what it says
   - Internal admin notes (never shown to the customer)
   - Spam flag — bookings with a repeated phone number, an obviously fake
     name, or an invalid phone format get an automatic ⚠ warning; you can
@@ -87,6 +84,9 @@ One-time setup in your GitHub repo:
 - **Catalog tab** — add, edit, or delete Packages and Individual Tests
   (name, price, category, active toggle) — changes apply immediately to
   what customers see on the booking site.
+- **Slots tab** — add a single time slot, or bulk-generate a whole day's
+  worth (e.g. 08:00–18:00 every 60 min) with a preview before confirming.
+  Edit capacity or deactivate/delete any slot.
 - **Live new-booking alerts** — a browser notification pops up the moment
   a new booking comes in, as long as this tab is open (see limitations
   below). A banner at the top lets you turn notifications on, and tells
