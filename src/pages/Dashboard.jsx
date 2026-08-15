@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   fetchLookups, fetchBookings, updateBookingStatus, updateBookingStaff,
   updateCallStatus, updateAdminNotes, setSpamFlag, uploadReport, skipReport, resetReport,
-  updatePrescriptionNotes, computeStats, computeSpamFlags, STATUSES,
+  computeStats, computeSpamFlags, STATUSES,
 } from '../lib/adminData'
 import { exportBookingsCsv } from '../lib/csvExport'
 import MapPreview from '../components/MapPreview'
@@ -161,15 +161,6 @@ export default function Dashboard() {
     }
   }
 
-  async function handlePrescriptionNotes(booking, notes) {
-    patch(booking.id, { prescription_notes: notes })
-    try {
-      await updatePrescriptionNotes(booking.id, notes)
-    } catch (err) {
-      setError('Could not save prescription notes: ' + err.message)
-    }
-  }
-
   return (
     <div className="bookings-tab">
       <div className="admin-stats">
@@ -240,7 +231,6 @@ export default function Dashboard() {
             onReportUpload={(f) => handleReportUpload(b, f)}
             onReportSkip={() => handleReportSkip(b)}
             onReportReset={() => handleReportReset(b)}
-            onPrescriptionNotes={(n) => handlePrescriptionNotes(b, n)}
           />
         ))}
       </div>
@@ -259,9 +249,10 @@ function StatCard({ label, value, accent }) {
 
 function BookingCard({
   booking, lookups, expanded, onToggle, onStatusChange, onStaffChange,
-  onCallStatus, onNotes, onSpamToggle, onReportUpload, onReportSkip, onReportReset, onPrescriptionNotes,
+  onCallStatus, onNotes, onSpamToggle, onReportUpload, onReportSkip, onReportReset,
 }) {
-  const { packagesById, testsById } = lookups
+  const { packagesById, testsById, slotsById } = lookups
+  const slot = slotsById[booking.slot_id]
   const packageNames = (booking.selected_packages || []).map((id) => packagesById[id]?.name).filter(Boolean)
   const testNames = (booking.selected_tests || []).map((id) => testsById[id]?.name).filter(Boolean)
   const isFlagged = booking.spamReasons?.length > 0
@@ -276,6 +267,7 @@ function BookingCard({
           </span>
           <span className="booking-card__meta">
             {booking.customer_phone} · {booking.scheduled_date}
+            {slot ? ` · ${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}` : ''}
           </span>
         </div>
         <div className="booking-card__right">
@@ -315,24 +307,6 @@ function BookingCard({
                 booking.patient_blood_group,
               ].filter(Boolean).join(' · ') || '—'}
             />
-          )}
-
-          {booking.prescription_url && (
-            <div className="prescription-panel">
-              <span className="detail-row__label">Prescription photo</span>
-              <a href={booking.prescription_url} target="_blank" rel="noreferrer">
-                <img src={booking.prescription_url} alt="Prescription" className="prescription-panel__img" />
-              </a>
-              <label className="prescription-panel__notes">
-                Tests read from prescription
-                <textarea
-                  defaultValue={booking.prescription_notes || ''}
-                  placeholder="e.g. CBC, Lipid Profile, HbA1c"
-                  rows={2}
-                  onBlur={(e) => onPrescriptionNotes(e.target.value)}
-                />
-              </label>
-            </div>
           )}
 
           <div className="booking-card__controls">
