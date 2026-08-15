@@ -7,10 +7,12 @@ import NotificationBanner from './NotificationBanner'
 import logoIcon from '../assets/logo-icon.png'
 import Dashboard from '../pages/Dashboard'
 import CatalogTab from '../pages/CatalogTab'
+import SlotsTab from '../pages/SlotsTab'
 
 const TABS = [
   { key: 'bookings', label: 'Bookings' },
   { key: 'catalog', label: 'Catalog' },
+  { key: 'slots', label: 'Slots' },
 ]
 
 export default function AdminShell() {
@@ -79,6 +81,7 @@ export default function AdminShell() {
 
       {tab === 'bookings' && <Dashboard />}
       {tab === 'catalog' && <CatalogTab />}
+      {tab === 'slots' && <SlotsTab />}
     </div>
   )
 }
