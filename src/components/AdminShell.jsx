@@ -7,12 +7,16 @@ import NotificationBanner from './NotificationBanner'
 import logoIcon from '../assets/logo-icon.png'
 import Dashboard from '../pages/Dashboard'
 import CatalogTab from '../pages/CatalogTab'
-import SlotsTab from '../pages/SlotsTab'
+import AiPackagesTab from '../pages/AiPackagesTab'
+import PagesTab from '../pages/PagesTab'
+import AnnouncementsTab from '../pages/AnnouncementsTab'
 
 const TABS = [
   { key: 'bookings', label: 'Bookings' },
   { key: 'catalog', label: 'Catalog' },
-  { key: 'slots', label: 'Slots' },
+  { key: 'ai-packages', label: 'AI Packages' },
+  { key: 'pages', label: 'Pages' },
+  { key: 'announcements', label: 'Announcements' },
 ]
 
 export default function AdminShell() {
@@ -81,7 +85,9 @@ export default function AdminShell() {
 
       {tab === 'bookings' && <Dashboard />}
       {tab === 'catalog' && <CatalogTab />}
-      {tab === 'slots' && <SlotsTab />}
+      {tab === 'ai-packages' && <AiPackagesTab />}
+      {tab === 'pages' && <PagesTab />}
+      {tab === 'announcements' && <AnnouncementsTab />}
     </div>
   )
 }
