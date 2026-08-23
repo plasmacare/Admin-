@@ -141,3 +141,45 @@ bigger addition than this. Worth doing later if this isn't enough.
 - Staff panel (separate, simpler app for the person actually doing home
   visits — just their assigned jobs for the day).
 - True push notifications that work even when the site/browser is closed.
+
+## New in this update
+
+**Setup — run these SQL files too** (Supabase SQL Editor):
+- `supabase/seed_full_test_catalog.sql` — inserts all 220 tests from the
+  price list PDF into `individual_tests`. Safe to re-run (skips names
+  that already exist).
+- `supabase/customer_ip_tracking.sql` — adds `customer_ip` to `bookings`.
+- `supabase/payment_settings.sql` — admin-only payment settings + per-
+  booking payment request fields.
+
+**Spam detection** now also flags a booking if 4+ bookings share the same
+IP address (on top of the existing phone/name checks) — visible in the
+⚠ banner same as before.
+
+**Report sharing** — when a report is uploaded, WhatsApp/Telegram/Copy
+buttons appear right under it to send the link straight to the customer.
+
+**Payments tab (new)** — off by default. Turn it on and set either your
+own UPI ID (generates a QR per request, no third-party account needed)
+or Razorpay. When on, each booking gets a "Request payment" control —
+Full / Partial (50%) / Custom amount — that generates a QR or payment
+link to share, and a manual "Mark as paid" once you've confirmed it in
+your own UPI/Razorpay app (there's no automatic payment-confirmation
+webhook in this version — that would be the next thing to add if you
+end up leaning on this a lot).
+
+For Razorpay: deploy the function and set both secrets (the secret key
+must never go in the settings form, only here):
+```bash
+supabase functions deploy create-payment-link
+supabase secrets set RAZORPAY_KEY_ID=rzp_live_...
+supabase secrets set RAZORPAY_KEY_SECRET=...
+```
+
+**On "AI auto-integrating any payment gateway"** — that specific ask
+isn't something I built, and I don't think it's buildable honestly:
+every gateway (Razorpay, PayU, Cashfree, Stripe...) has its own API
+shape, so nothing can safely wire up an arbitrary provider from just a
+key and a name. What's here is a real, working Razorpay integration —
+adding another named gateway later is possible but needs its own
+specific implementation, not a generic "put in any key" flow.
