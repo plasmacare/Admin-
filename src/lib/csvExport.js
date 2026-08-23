@@ -4,7 +4,7 @@ export function exportBookingsCsv(bookings, lookups) {
     'Booking ID', 'Name', 'Phone', 'Type', 'Date', 'Tests/Packages',
     'Amount', 'Status', 'Call Status', 'Assigned Staff', 'Report Status',
     'Patient Name', 'Patient Age', 'Patient Gender', 'Patient Blood Group',
-    'Has Prescription', 'Created At',
+    'Has Prescription', 'IP Address', 'Created At',
   ]
 
   const rows = bookings.map((b) => {
@@ -27,6 +27,7 @@ export function exportBookingsCsv(bookings, lookups) {
       b.patient_gender || '',
       b.patient_blood_group || '',
       b.prescription_url ? 'Yes' : 'No',
+      b.customer_ip || '',
       b.created_at || '',
     ]
   })

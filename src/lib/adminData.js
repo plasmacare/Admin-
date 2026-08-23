@@ -91,14 +91,18 @@ export async function resetReport(bookingId) {
  */
 export function computeSpamFlags(bookings) {
   const phoneCounts = {}
+  const ipCounts = {}
   for (const b of bookings) {
-    if (!b.customer_phone) continue
-    phoneCounts[b.customer_phone] = (phoneCounts[b.customer_phone] || 0) + 1
+    if (b.customer_phone) phoneCounts[b.customer_phone] = (phoneCounts[b.customer_phone] || 0) + 1
+    if (b.customer_ip) ipCounts[b.customer_ip] = (ipCounts[b.customer_ip] || 0) + 1
   }
   return bookings.map((b) => {
     const reasons = []
     if (b.customer_phone && phoneCounts[b.customer_phone] >= 3) {
       reasons.push(`Same number used ${phoneCounts[b.customer_phone]}x`)
+    }
+    if (b.customer_ip && ipCounts[b.customer_ip] >= 4) {
+      reasons.push(`Same IP address used ${ipCounts[b.customer_ip]}x (${b.customer_ip})`)
     }
     const name = (b.customer_name || '').trim()
     if (name && /^(\d+|(.)\2{2,}|test|xxx+|asdf)$/i.test(name.replace(/\s+/g, ''))) {
