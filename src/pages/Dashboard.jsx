@@ -6,6 +6,9 @@ import {
 } from '../lib/adminData'
 import { exportBookingsCsv } from '../lib/csvExport'
 import MapPreview from '../components/MapPreview'
+import {
+  fetchPaymentSettings, buildUpiQrUrl, createRazorpayLink, savePaymentRequest, markPaymentReceived,
+} from '../lib/payments'
 
 function formatLocalDate(d) {
   const y = d.getFullYear()
@@ -31,6 +34,7 @@ const CALL_STATUS_LABEL = {
 
 export default function Dashboard() {
   const [lookups, setLookups] = useState({ packagesById: {}, testsById: {}, slotsById: {} })
+  const [paymentSettings, setPaymentSettings] = useState(null)
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -43,6 +47,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchLookups().then(setLookups).catch(() => {})
+    fetchPaymentSettings().then(setPaymentSettings).catch(() => {})
   }, [])
 
   async function load() {
@@ -230,6 +235,7 @@ export default function Dashboard() {
             key={b.id}
             booking={b}
             lookups={lookups}
+            paymentSettings={paymentSettings}
             expanded={expandedId === b.id}
             onToggle={() => setExpandedId(expandedId === b.id ? null : b.id)}
             onStatusChange={(s) => handleStatusChange(b, s)}
@@ -241,6 +247,7 @@ export default function Dashboard() {
             onReportSkip={() => handleReportSkip(b)}
             onReportReset={() => handleReportReset(b)}
             onPrescriptionNotes={(n) => handlePrescriptionNotes(b, n)}
+            onBookingPatch={(fields) => patch(b.id, fields)}
           />
         ))}
       </div>
@@ -258,8 +265,9 @@ function StatCard({ label, value, accent }) {
 }
 
 function BookingCard({
-  booking, lookups, expanded, onToggle, onStatusChange, onStaffChange,
+  booking, lookups, paymentSettings, expanded, onToggle, onStatusChange, onStaffChange,
   onCallStatus, onNotes, onSpamToggle, onReportUpload, onReportSkip, onReportReset, onPrescriptionNotes,
+  onBookingPatch,
 }) {
   const { packagesById, testsById } = lookups
   const packageNames = (booking.selected_packages || []).map((id) => packagesById[id]?.name).filter(Boolean)
@@ -315,6 +323,7 @@ function BookingCard({
               ].filter(Boolean).join(' · ') || '—'}
             />
           )}
+          {booking.customer_ip && <DetailRow label="IP address" value={booking.customer_ip} />}
 
           {booking.prescription_url && (
             <div className="prescription-panel">
@@ -337,6 +346,10 @@ function BookingCard({
                 />
               </label>
             </div>
+          )}
+
+          {paymentSettings?.enabled && (
+            <PaymentRequest booking={booking} settings={paymentSettings} onPatch={onBookingPatch} />
           )}
 
           <div className="booking-card__controls">
@@ -376,6 +389,7 @@ function BookingCard({
           <ReportControl
             status={booking.report_status || 'pending'}
             url={booking.report_url}
+            phone={booking.customer_phone}
             onUpload={onReportUpload}
             onSkip={onReportSkip}
             onReset={onReportReset}
@@ -400,7 +414,7 @@ function BookingCard({
   )
 }
 
-function ReportControl({ status, url, onUpload, onSkip, onReset }) {
+function ReportControl({ status, url, phone, onUpload, onSkip, onReset }) {
   if (status === 'uploaded' && url) {
     return (
       <div className="report-control">
@@ -409,6 +423,7 @@ function ReportControl({ status, url, onUpload, onSkip, onReset }) {
           <a href={url} target="_blank" rel="noreferrer" className="btn btn--secondary">View report</a>
           <button type="button" className="btn btn--ghost" onClick={onReset}>Replace</button>
         </div>
+        <ReportShareRow url={url} phone={phone} />
       </div>
     )
   }
@@ -437,6 +452,170 @@ function ReportControl({ status, url, onUpload, onSkip, onReset }) {
           />
         </label>
         <button type="button" className="btn btn--ghost" onClick={onSkip}>Skip</button>
+      </div>
+    </div>
+  )
+}
+
+function PaymentRequest({ booking, settings, onPatch }) {
+  const [amountMode, setAmountMode] = useState('full')
+  const [customAmount, setCustomAmount] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const fullAmount = Number(booking.total_amount) || 0
+  const amount =
+    amountMode === 'full' ? fullAmount
+    : amountMode === 'partial' ? Math.round(fullAmount * 0.5)
+    : Number(customAmount) || 0
+
+  async function handleGenerate() {
+    if (amount <= 0) {
+      setError('Enter a valid amount.')
+      return
+    }
+    setError('')
+    setBusy(true)
+    try {
+      let link = null
+      if (settings.mode === 'razorpay') {
+        const result = await createRazorpayLink({
+          amount,
+          customerName: booking.customer_name,
+          customerPhone: booking.customer_phone,
+          description: `Plasma Care booking ${booking.id.slice(0, 8).toUpperCase()}`,
+        })
+        link = result.link
+      } else {
+        const { upiLink } = buildUpiQrUrl({
+          upiId: settings.upi_id,
+          payeeName: settings.upi_payee_name,
+          amount,
+          note: `Plasma Care ${booking.id.slice(0, 8).toUpperCase()}`,
+        })
+        link = upiLink
+      }
+      await savePaymentRequest(booking.id, { amount, method: settings.mode, link })
+      onPatch({ payment_requested_amount: amount, payment_method: settings.mode, payment_link: link, payment_status: 'requested' })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleMarkPaid() {
+    try {
+      await markPaymentReceived(booking.id)
+      onPatch({ payment_status: 'paid' })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  if (booking.payment_status === 'paid') {
+    return (
+      <div className="payment-request">
+        <span className="detail-row__label">Payment</span>
+        <p className="payment-request__status">✓ Paid — ₹{booking.payment_requested_amount}</p>
+      </div>
+    )
+  }
+
+  if (booking.payment_status === 'requested' && booking.payment_link) {
+    const qr = settings.mode === 'upi'
+      ? buildUpiQrUrl({ upiId: settings.upi_id, payeeName: settings.upi_payee_name, amount: booking.payment_requested_amount, note: 'Plasma Care' })
+      : null
+    const message = encodeURIComponent(`Please complete your payment of ₹${booking.payment_requested_amount} here: ${booking.payment_link}`)
+    const tenDigitPhone = booking.customer_phone ? booking.customer_phone.replace(/\D/g, '').slice(-10) : ''
+    return (
+      <div className="payment-request">
+        <span className="detail-row__label">Payment requested — ₹{booking.payment_requested_amount}</span>
+        {qr && <img src={qr.qrImageUrl} alt="UPI QR" className="payment-request__qr" />}
+        <div className="report-share-row__buttons">
+          {tenDigitPhone && (
+            <a className="report-share-btn report-share-btn--whatsapp" href={`https://wa.me/91${tenDigitPhone}?text=${message}`} target="_blank" rel="noreferrer">
+              WhatsApp
+            </a>
+          )}
+          <a className="report-share-btn report-share-btn--telegram" href={`https://t.me/share/url?url=${encodeURIComponent(booking.payment_link)}`} target="_blank" rel="noreferrer">
+            Telegram
+          </a>
+          <button type="button" className="btn btn--secondary" onClick={handleMarkPaid}>Mark as paid</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="payment-request">
+      <span className="detail-row__label">Request payment</span>
+      <div className="payment-request__amount-row">
+        <button type="button" className={amountMode === 'full' ? 'is-active' : ''} onClick={() => setAmountMode('full')}>
+          Full (₹{fullAmount})
+        </button>
+        <button type="button" className={amountMode === 'partial' ? 'is-active' : ''} onClick={() => setAmountMode('partial')}>
+          Partial (₹{Math.round(fullAmount * 0.5)})
+        </button>
+        <button type="button" className={amountMode === 'custom' ? 'is-active' : ''} onClick={() => setAmountMode('custom')}>
+          Custom
+        </button>
+        {amountMode === 'custom' && (
+          <input
+            type="number"
+            className="payment-request__custom"
+            placeholder="Amount"
+            value={customAmount}
+            onChange={(e) => setCustomAmount(e.target.value)}
+          />
+        )}
+      </div>
+      {error && <p className="admin-error">{error}</p>}
+      <button type="button" className="btn btn--primary" disabled={busy} onClick={handleGenerate}>
+        {busy ? 'Generating…' : `Generate ${settings.mode === 'razorpay' ? 'payment link' : 'UPI QR'}`}
+      </button>
+    </div>
+  )
+}
+
+function ReportShareRow({ url, phone }) {
+  const message = encodeURIComponent(`Your Plasma Care report is ready: ${url}`)
+  const tenDigitPhone = phone ? phone.replace(/\D/g, '').slice(-10) : ''
+  const whatsappLink = tenDigitPhone ? `https://wa.me/91${tenDigitPhone}?text=${message}` : null
+  const telegramLink = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent('Your Plasma Care report is ready.')}`
+
+  async function handleShareOther() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Plasma Care report', text: 'Your Plasma Care report is ready.', url })
+        return
+      } catch {
+        // User cancelled the share sheet — fall through to clipboard copy.
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      alert('Report link copied to clipboard.')
+    } catch {
+      alert(url)
+    }
+  }
+
+  return (
+    <div className="report-share-row">
+      <span className="report-share-row__label">Send to customer:</span>
+      <div className="report-share-row__buttons">
+        {whatsappLink && (
+          <a className="report-share-btn report-share-btn--whatsapp" href={whatsappLink} target="_blank" rel="noreferrer">
+            WhatsApp
+          </a>
+        )}
+        <a className="report-share-btn report-share-btn--telegram" href={telegramLink} target="_blank" rel="noreferrer">
+          Telegram
+        </a>
+        <button type="button" className="report-share-btn" onClick={handleShareOther}>
+          Other / Copy link
+        </button>
       </div>
     </div>
   )
