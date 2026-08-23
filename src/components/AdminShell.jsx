@@ -10,6 +10,7 @@ import CatalogTab from '../pages/CatalogTab'
 import AiPackagesTab from '../pages/AiPackagesTab'
 import PagesTab from '../pages/PagesTab'
 import AnnouncementsTab from '../pages/AnnouncementsTab'
+import PaymentsTab from '../pages/PaymentsTab'
 
 const TABS = [
   { key: 'bookings', label: 'Bookings' },
@@ -17,6 +18,7 @@ const TABS = [
   { key: 'ai-packages', label: 'AI Packages' },
   { key: 'pages', label: 'Pages' },
   { key: 'announcements', label: 'Announcements' },
+  { key: 'payments', label: 'Payments' },
 ]
 
 export default function AdminShell() {
@@ -88,6 +90,7 @@ export default function AdminShell() {
       {tab === 'ai-packages' && <AiPackagesTab />}
       {tab === 'pages' && <PagesTab />}
       {tab === 'announcements' && <AnnouncementsTab />}
+      {tab === 'payments' && <PaymentsTab />}
     </div>
   )
 }
