@@ -1,25 +1,62 @@
 import { useEffect, useState } from 'react'
-import { isNotificationSupported, getPermission, requestPermission } from '../lib/notifications'
+import {
+  isNotificationSupported, getPermission, requestPermission,
+  areNotificationsEnabled, setNotificationsEnabled,
+} from '../lib/notifications'
 
 export default function NotificationBanner() {
   const [permission, setPermission] = useState(getPermission())
+  const [enabled, setEnabled] = useState(areNotificationsEnabled())
   const [dismissed, setDismissed] = useState(() => sessionStorage.getItem('pc_notif_dismissed') === '1')
 
   useEffect(() => {
     setPermission(getPermission())
   }, [])
 
-  if (!isNotificationSupported() || permission === 'granted' || dismissed) return null
+  if (!isNotificationSupported()) return null
 
   async function handleEnable() {
     const result = await requestPermission()
     setPermission(result)
+    if (result === 'granted') {
+      setNotificationsEnabled(true)
+      setEnabled(true)
+    }
+  }
+
+  function handleToggle() {
+    const next = !enabled
+    setNotificationsEnabled(next)
+    setEnabled(next)
   }
 
   function handleDismiss() {
     sessionStorage.setItem('pc_notif_dismissed', '1')
     setDismissed(true)
   }
+
+  // Permission already granted at least once — show a persistent on/off
+  // switch instead of a one-time banner, so admin can always find it.
+  if (permission === 'granted') {
+    return (
+      <div className="notif-toggle">
+        <span className="notif-toggle__label">
+          New-booking notifications {enabled ? 'on' : 'off'}
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          className={`notif-toggle__switch${enabled ? ' notif-toggle__switch--on' : ''}`}
+          onClick={handleToggle}
+        >
+          <span className="notif-toggle__knob" />
+        </button>
+      </div>
+    )
+  }
+
+  if (dismissed) return null
 
   return (
     <div className="notif-banner">
