@@ -176,6 +176,82 @@ supabase secrets set RAZORPAY_KEY_ID=rzp_live_...
 supabase secrets set RAZORPAY_KEY_SECRET=...
 ```
 
+## New in this update — payment page moved to the customer site
+
+The QR / payment link is no longer shown inside the admin panel. Admin
+still picks the amount and taps "Generate", but from there:
+- **UPI ("Dynamic QR")** — the customer sees the QR on their own site at
+  `/pay/:bookingId` and uploads a screenshot once they've paid. That
+  screenshot shows up back here for you to review and tap
+  "Confirm — mark as paid".
+- **Razorpay ("Gateway")** — no screenshot needed. Set up the webhook
+  below once and matching bookings get marked paid automatically.
+
+**Setup — run this SQL file too** (Supabase SQL Editor):
+- `supabase/payment_v2_and_announcement_poster.sql` — adds the
+  `payment-proofs` storage bucket, `payment_screenshot_url` /
+  `razorpay_payment_link_id` columns, the announcement poster column +
+  bucket, and `prescription_upload_error`.
+- `supabase/fix_prescriptions_bucket_public.sql` — fixes an existing bug
+  where uploaded prescription photos could silently fail to display (the
+  storage bucket wasn't always marked public — see below). Safe to
+  re-run.
+
+**New env var** — add to this app's `.env`:
+```
+VITE_CUSTOMER_SITE_URL=https://yourname.github.io/Plasma-Care-
+```
+This is the customer site's deployed base URL, used to build the
+`/pay/:bookingId` link admin shares via WhatsApp/Telegram. Add the same
+key in your hosting provider's environment variables if you deploy
+there too.
+
+**Razorpay auto-tracking webhook (new)** — makes Gateway payments mark
+themselves paid automatically instead of needing a manual click:
+```bash
+supabase functions deploy razorpay-webhook --no-verify-jwt
+supabase secrets set RAZORPAY_WEBHOOK_SECRET=whsec_...
+```
+Then in the Razorpay Dashboard → Settings → Webhooks → Add New Webhook:
+- URL: `https://<your-project-ref>.supabase.co/functions/v1/razorpay-webhook`
+- Secret: same value as `RAZORPAY_WEBHOOK_SECRET` above (this is a
+  *different* secret from `RAZORPAY_KEY_SECRET`)
+- Active events: `payment_link.paid`
+
+Without this webhook, Razorpay payments still work — you'll just need
+to check back and tap "Mark as paid" yourself once you see the payment
+land in your Razorpay dashboard.
+
+## New in this update — why prescription photos weren't showing
+
+If prescription photos uploaded fine on the customer side but never
+appeared here, it was a real bug: the original setup script created the
+`prescriptions` storage bucket with `on conflict do nothing`, which
+meant it could stay non-public if a bucket with that name already
+existed from an earlier run. A non-public bucket's "public URL" doesn't
+actually load — so the photo silently failed to render for everyone,
+not just admin. Run `supabase/fix_prescriptions_bucket_public.sql` once
+to fix it (safe to re-run any time). Going forward, if a customer's
+upload fails for any reason (bad connection, etc.), you'll now see a
+banner here explaining what went wrong instead of the booking just
+missing a photo with no explanation.
+
+## New in this update — announcement poster image
+
+Announcements can now include a poster image, shown at the top of the
+popup card on the customer site. Upload it when creating the
+announcement in the **Announcements** tab — optional, leave it blank for
+a text-only popup like before.
+
+## New in this update — notifications toggle
+
+The notification banner used to disappear once dismissed or once
+permission was granted, with no way to turn alerts back off short of
+digging into browser settings. There's now a persistent on/off switch
+at the top of the Bookings tab (once browser permission has been
+granted at least once) so you can mute/unmute new-booking alerts
+whenever you like.
+
 **On "AI auto-integrating any payment gateway"** — that specific ask
 isn't something I built, and I don't think it's buildable honestly:
 every gateway (Razorpay, PayU, Cashfree, Stripe...) has its own API
