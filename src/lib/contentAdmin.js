@@ -21,11 +21,19 @@ export async function fetchAnnouncements() {
   if (error) throw error
   return data || []
 }
-export async function addAnnouncement({ title, message, ctaText, ctaLink }) {
+export async function addAnnouncement({ title, message, ctaText, ctaLink, imageUrl }) {
   const { error } = await supabase.from('announcements').insert({
-    title, message, cta_text: ctaText || null, cta_link: ctaLink || null, is_active: false,
+    title, message, cta_text: ctaText || null, cta_link: ctaLink || null, image_url: imageUrl || null, is_active: false,
   })
   if (error) throw error
+}
+/** Uploads a poster image for an announcement popup and returns its public URL. */
+export async function uploadAnnouncementPoster(file) {
+  const path = `${Date.now()}-${file.name}`
+  const { error: uploadError } = await supabase.storage.from('announcement-posters').upload(path, file, { upsert: true })
+  if (uploadError) throw uploadError
+  const { data } = supabase.storage.from('announcement-posters').getPublicUrl(path)
+  return data.publicUrl
 }
 export async function updateAnnouncement(id, fields) {
   const { error } = await supabase.from('announcements').update(fields).eq('id', id)

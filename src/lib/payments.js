@@ -33,10 +33,28 @@ export async function createRazorpayLink({ amount, customerName, customerPhone, 
   return data
 }
 
-export async function savePaymentRequest(bookingId, { amount, method, link }) {
+/**
+ * Set VITE_CUSTOMER_SITE_URL in this app's .env to the customer site's
+ * deployed base URL (e.g. https://yourname.github.io/Plasma-Care-) so the
+ * "share to customer" link points at the right place. Falls back to a
+ * relative path (useful only when testing both apps on the same origin).
+ */
+export function buildPaymentPageUrl(bookingId) {
+  const base = import.meta.env.VITE_CUSTOMER_SITE_URL || ''
+  return `${base.replace(/\/$/, '')}/pay/${bookingId}`
+}
+
+export async function savePaymentRequest(bookingId, { amount, method, link, razorpayPaymentLinkId }) {
   const { error } = await supabase
     .from('bookings')
-    .update({ payment_requested_amount: amount, payment_method: method, payment_link: link, payment_status: 'requested' })
+    .update({
+      payment_requested_amount: amount,
+      payment_method: method,
+      payment_link: link,
+      payment_status: 'requested',
+      razorpay_payment_link_id: razorpayPaymentLinkId || null,
+      payment_screenshot_url: null,
+    })
     .eq('id', bookingId)
   if (error) throw error
 }
