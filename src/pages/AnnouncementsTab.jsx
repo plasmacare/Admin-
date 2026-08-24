@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   fetchAnnouncements, addAnnouncement, updateAnnouncement, deleteAnnouncement, setActiveAnnouncement,
+  uploadAnnouncementPoster,
 } from '../lib/contentAdmin'
 
 export default function AnnouncementsTab() {
@@ -11,6 +12,9 @@ export default function AnnouncementsTab() {
   const [message, setMessage] = useState('')
   const [ctaText, setCtaText] = useState('')
   const [ctaLink, setCtaLink] = useState('')
+  const [posterFile, setPosterFile] = useState(null)
+  const [posterPreview, setPosterPreview] = useState('')
+  const [uploading, setUploading] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -24,18 +28,33 @@ export default function AnnouncementsTab() {
   }
   useEffect(() => { load() }, [])
 
+  function handlePosterChange(file) {
+    if (!file) return
+    setPosterFile(file)
+    setPosterPreview(URL.createObjectURL(file))
+  }
+
   async function handleAdd(e) {
     e.preventDefault()
     if (!title.trim() || !message.trim()) return
+    setUploading(true)
     try {
-      await addAnnouncement({ title: title.trim(), message: message.trim(), ctaText: ctaText.trim(), ctaLink: ctaLink.trim() })
+      let imageUrl = ''
+      if (posterFile) {
+        imageUrl = await uploadAnnouncementPoster(posterFile)
+      }
+      await addAnnouncement({ title: title.trim(), message: message.trim(), ctaText: ctaText.trim(), ctaLink: ctaLink.trim(), imageUrl })
       setTitle('')
       setMessage('')
       setCtaText('')
       setCtaLink('')
+      setPosterFile(null)
+      setPosterPreview('')
       load()
     } catch (err) {
       setError(err.message)
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -80,7 +99,28 @@ export default function AnnouncementsTab() {
           <textarea rows={3} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
           <input placeholder="Button text (optional)" value={ctaText} onChange={(e) => setCtaText(e.target.value)} />
           <input placeholder="Button link (optional)" value={ctaLink} onChange={(e) => setCtaLink(e.target.value)} />
-          <button type="submit" className="btn btn--primary btn--block">Create</button>
+
+          <label className="announcements-tab__poster-picker">
+            Poster image (optional)
+            {posterPreview ? (
+              <div className="announcements-tab__poster-preview-row">
+                <img src={posterPreview} alt="Poster preview" className="announcements-tab__poster-preview" />
+                <button type="button" className="btn btn--ghost" onClick={() => { setPosterFile(null); setPosterPreview('') }}>
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handlePosterChange(e.target.files[0])}
+              />
+            )}
+          </label>
+
+          <button type="submit" className="btn btn--primary btn--block" disabled={uploading}>
+            {uploading ? 'Creating…' : 'Create'}
+          </button>
         </form>
       </div>
 
@@ -95,6 +135,7 @@ export default function AnnouncementsTab() {
         <div className="announcements-tab__list">
           {items.map((a) => (
             <div key={a.id} className={`announcement-row${a.is_active ? ' announcement-row--active' : ''}`}>
+              {a.image_url && <img src={a.image_url} alt="" className="announcement-row__poster" />}
               <div className="announcement-row__top">
                 <span className="announcement-row__title">{a.title}</span>
                 {a.is_active && <span className="badge badge--confirmed">Live</span>}

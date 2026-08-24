@@ -7,7 +7,7 @@ import {
 import { exportBookingsCsv } from '../lib/csvExport'
 import MapPreview from '../components/MapPreview'
 import {
-  fetchPaymentSettings, buildUpiQrUrl, createRazorpayLink, savePaymentRequest, markPaymentReceived,
+  fetchPaymentSettings, createRazorpayLink, savePaymentRequest, markPaymentReceived, buildPaymentPageUrl,
 } from '../lib/payments'
 
 function formatLocalDate(d) {
@@ -325,12 +325,20 @@ function BookingCard({
           )}
           {booking.customer_ip && <DetailRow label="IP address" value={booking.customer_ip} />}
 
-          {booking.prescription_url && (
+          {(booking.prescription_url || booking.prescription_upload_error) && (
             <div className="prescription-panel">
               <span className="detail-row__label">Prescription photo</span>
-              <a href={booking.prescription_url} target="_blank" rel="noreferrer">
-                <img src={booking.prescription_url} alt="Prescription" className="prescription-panel__img" />
-              </a>
+              {booking.prescription_url && (
+                <a href={booking.prescription_url} target="_blank" rel="noreferrer">
+                  <img src={booking.prescription_url} alt="Prescription" className="prescription-panel__img" />
+                </a>
+              )}
+              {booking.prescription_upload_error && (
+                <p className="prescription-panel__error">
+                  ⚠ Customer tried to upload a prescription photo but it failed: {booking.prescription_upload_error}.
+                  Ask them to WhatsApp it to 8112060205.
+                </p>
+              )}
               {booking.prescription_ai_summary && (
                 <p className="prescription-panel__ai">
                   AI read ({booking.prescription_ai_confidence ?? '?'}% confidence): {booking.prescription_ai_summary}
@@ -478,6 +486,7 @@ function PaymentRequest({ booking, settings, onPatch }) {
     setBusy(true)
     try {
       let link = null
+      let razorpayPaymentLinkId = null
       if (settings.mode === 'razorpay') {
         const result = await createRazorpayLink({
           amount,
@@ -486,17 +495,23 @@ function PaymentRequest({ booking, settings, onPatch }) {
           description: `Plasma Care booking ${booking.id.slice(0, 8).toUpperCase()}`,
         })
         link = result.link
+        razorpayPaymentLinkId = result.id
       } else {
-        const { upiLink } = buildUpiQrUrl({
-          upiId: settings.upi_id,
-          payeeName: settings.upi_payee_name,
-          amount,
-          note: `Plasma Care ${booking.id.slice(0, 8).toUpperCase()}`,
-        })
-        link = upiLink
+        // UPI: the QR itself is now shown on the customer's own payment
+        // page (/pay/:bookingId), built from this same deep-link — admin
+        // just shares the page link, doesn't show the QR here.
+        link =
+          `upi://pay?pa=${encodeURIComponent(settings.upi_id)}&pn=${encodeURIComponent(settings.upi_payee_name || 'Plasma Care')}` +
+          `&am=${encodeURIComponent(amount)}&cu=INR&tn=${encodeURIComponent(`Plasma Care ${booking.id.slice(0, 8).toUpperCase()}`)}`
       }
-      await savePaymentRequest(booking.id, { amount, method: settings.mode, link })
-      onPatch({ payment_requested_amount: amount, payment_method: settings.mode, payment_link: link, payment_status: 'requested' })
+      await savePaymentRequest(booking.id, { amount, method: settings.mode, link, razorpayPaymentLinkId })
+      onPatch({
+        payment_requested_amount: amount,
+        payment_method: settings.mode,
+        payment_link: link,
+        payment_status: 'requested',
+        payment_screenshot_url: null,
+      })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -522,27 +537,41 @@ function PaymentRequest({ booking, settings, onPatch }) {
     )
   }
 
-  if (booking.payment_status === 'requested' && booking.payment_link) {
-    const qr = settings.mode === 'upi'
-      ? buildUpiQrUrl({ upiId: settings.upi_id, payeeName: settings.upi_payee_name, amount: booking.payment_requested_amount, note: 'Plasma Care' })
-      : null
-    const message = encodeURIComponent(`Please complete your payment of ₹${booking.payment_requested_amount} here: ${booking.payment_link}`)
+  if (booking.payment_status === 'requested' || booking.payment_status === 'screenshot_uploaded') {
+    const pageUrl = buildPaymentPageUrl(booking.id)
+    const message = encodeURIComponent(`Please complete your payment of ₹${booking.payment_requested_amount} here: ${pageUrl}`)
     const tenDigitPhone = booking.customer_phone ? booking.customer_phone.replace(/\D/g, '').slice(-10) : ''
     return (
       <div className="payment-request">
         <span className="detail-row__label">Payment requested — ₹{booking.payment_requested_amount}</span>
-        {qr && <img src={qr.qrImageUrl} alt="UPI QR" className="payment-request__qr" />}
+        <p className="payment-request__hint">
+          {booking.payment_method === 'razorpay'
+            ? 'Gateway payment — will be marked paid automatically once Razorpay confirms it.'
+            : 'Customer pays via the QR on their own payment page and uploads a screenshot as proof.'}
+        </p>
         <div className="report-share-row__buttons">
           {tenDigitPhone && (
             <a className="report-share-btn report-share-btn--whatsapp" href={`https://wa.me/91${tenDigitPhone}?text=${message}`} target="_blank" rel="noreferrer">
               WhatsApp
             </a>
           )}
-          <a className="report-share-btn report-share-btn--telegram" href={`https://t.me/share/url?url=${encodeURIComponent(booking.payment_link)}`} target="_blank" rel="noreferrer">
+          <a className="report-share-btn report-share-btn--telegram" href={`https://t.me/share/url?url=${encodeURIComponent(pageUrl)}`} target="_blank" rel="noreferrer">
             Telegram
           </a>
-          <button type="button" className="btn btn--secondary" onClick={handleMarkPaid}>Mark as paid</button>
         </div>
+        {booking.payment_screenshot_url ? (
+          <div className="payment-request__proof">
+            <span className="detail-row__label">Screenshot uploaded by customer</span>
+            <a href={booking.payment_screenshot_url} target="_blank" rel="noreferrer">
+              <img src={booking.payment_screenshot_url} alt="Payment screenshot" className="payment-request__proof-img" />
+            </a>
+            <button type="button" className="btn btn--secondary" onClick={handleMarkPaid}>Confirm — mark as paid</button>
+          </div>
+        ) : (
+          booking.payment_method !== 'razorpay' && (
+            <button type="button" className="btn btn--ghost" onClick={handleMarkPaid}>Mark as paid manually</button>
+          )
+        )}
       </div>
     )
   }
@@ -572,7 +601,7 @@ function PaymentRequest({ booking, settings, onPatch }) {
       </div>
       {error && <p className="admin-error">{error}</p>}
       <button type="button" className="btn btn--primary" disabled={busy} onClick={handleGenerate}>
-        {busy ? 'Generating…' : `Generate ${settings.mode === 'razorpay' ? 'payment link' : 'UPI QR'}`}
+        {busy ? 'Generating…' : `Generate ${settings.mode === 'razorpay' ? 'payment link' : 'payment request'}`}
       </button>
     </div>
   )
