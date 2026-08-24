@@ -8,7 +8,7 @@ alter table bookings
 
 insert into storage.buckets (id, name, public)
 values ('prescriptions', 'prescriptions', true)
-on conflict (id) do nothing;
+on conflict (id) do update set public = true;
 
 drop policy if exists "Public can upload prescriptions" on storage.objects;
 create policy "Public can upload prescriptions"
