@@ -25,6 +25,15 @@ export function buildUpiQrUrl({ upiId, payeeName, amount, note }) {
   }
 }
 
+/** Full amount, or the configured percentage of it for partial payments. Same rule used by the customer app when it creates the request inline during booking. */
+export function computeRequiredAmount(totalAmount, settings) {
+  const full = Number(totalAmount) || 0
+  if (settings?.payment_type === 'partial') {
+    return Math.round((full * (Number(settings.partial_percentage) || 50)) / 100)
+  }
+  return full
+}
+
 export async function createRazorpayLink({ amount, customerName, customerPhone, description }) {
   const { data, error } = await supabase.functions.invoke('create-payment-link', {
     body: { amount, customerName, customerPhone, description },
