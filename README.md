@@ -176,22 +176,45 @@ supabase secrets set RAZORPAY_KEY_ID=rzp_live_...
 supabase secrets set RAZORPAY_KEY_SECRET=...
 ```
 
-## New in this update — payment page moved to the customer site
+## New in this update — payment is now one unitary rule, collected inline during booking
 
-The QR / payment link is no longer shown inside the admin panel. Admin
-still picks the amount and taps "Generate", but from there:
-- **UPI ("Dynamic QR")** — the customer sees the QR on their own site at
-  `/pay/:bookingId` and uploads a screenshot once they've paid. That
-  screenshot shows up back here for you to review and tap
-  "Confirm — mark as paid".
+Payment collection changed from "admin manually requests an amount per
+booking, then shares a QR/link" to: admin sets **one global rule** in
+the **Payments** tab — Full payment, or Partial (a fixed % of the
+total) — and it applies to every booking automatically. The customer
+pays it as part of the same booking flow itself (right after they tap
+"Confirm booking"), so there's no separate share-the-QR step afterward.
+
+- **UPI ("Dynamic QR")** — the customer sees the QR right there in the
+  booking flow and uploads a screenshot once they've paid, before
+  moving on to the confirmation screen. That screenshot shows up here
+  in the Bookings tab for you to review and tap "Confirm — mark as
+  paid".
 - **Razorpay ("Gateway")** — no screenshot needed. Set up the webhook
   below once and matching bookings get marked paid automatically.
 
+The per-booking "Request payment" button/QR is gone from the Bookings
+tab — you'll only see a read-only payment status there now, plus a
+small "Create payment request" fallback button for the rare case a
+booking exists from before payment collection was turned on.
+
 **Setup — run this SQL file too** (Supabase SQL Editor):
+- `supabase/payment_v3_integrated_flow.sql` — adds `payment_type` /
+  `partial_percentage` to payment settings, and lets the customer site
+  read payment settings (needed so it can build the QR/gateway button
+  during booking).
 - `supabase/payment_v2_and_announcement_poster.sql` — adds the
   `payment-proofs` storage bucket, `payment_screenshot_url` /
   `razorpay_payment_link_id` columns, the announcement poster column +
   bucket, and `prescription_upload_error`.
+
+**If prescription uploads fail with "new row violates row-level security
+policy"** — run `supabase/RUN_THIS_FIRST_prescriptions_fix.sql` instead.
+It's a complete, standalone fix (bucket + both upload/read policies) for
+when the original `prescription_and_no_slots.sql` never fully ran on
+this project — safe to run repeatedly, includes a couple of verification
+queries at the bottom.
+
 - `supabase/fix_prescriptions_bucket_public.sql` — fixes an existing bug
   where uploaded prescription photos could silently fail to display (the
   storage bucket wasn't always marked public — see below). Safe to
@@ -201,10 +224,10 @@ still picks the amount and taps "Generate", but from there:
 ```
 VITE_CUSTOMER_SITE_URL=https://yourname.github.io/Plasma-Care-
 ```
-This is the customer site's deployed base URL, used to build the
-`/pay/:bookingId` link admin shares via WhatsApp/Telegram. Add the same
-key in your hosting provider's environment variables if you deploy
-there too.
+This is the customer site's deployed base URL. It's now mostly used for
+the `/pay/:bookingId` fallback page (useful if you ever need to resend
+a payment link manually) rather than the main flow, but is still worth
+setting.
 
 **Razorpay auto-tracking webhook (new)** — makes Gateway payments mark
 themselves paid automatically instead of needing a manual click:
