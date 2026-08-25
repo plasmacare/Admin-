@@ -953,6 +953,19 @@ body { font-family: var(--font-body); color: var(--ink); }
   color: #fff;
   border-color: var(--navy-950);
 }
+.payments-tab__percentage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--navy-800);
+  margin-bottom: 10px;
+}
+.payments-tab__percentage input {
+  width: 70px;
+  flex: none;
+}
 .payments-tab .slots-form-card input {
   width: 100%;
   font-family: var(--font-body);
