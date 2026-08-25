@@ -7,7 +7,7 @@ import {
 import { exportBookingsCsv } from '../lib/csvExport'
 import MapPreview from '../components/MapPreview'
 import {
-  fetchPaymentSettings, createRazorpayLink, savePaymentRequest, markPaymentReceived, buildPaymentPageUrl,
+  fetchPaymentSettings, createRazorpayLink, savePaymentRequest, markPaymentReceived, computeRequiredAmount,
 } from '../lib/payments'
 
 function formatLocalDate(d) {
@@ -466,22 +466,24 @@ function ReportControl({ status, url, phone, onUpload, onSkip, onReset }) {
 }
 
 function PaymentRequest({ booking, settings, onPatch }) {
-  const [amountMode, setAmountMode] = useState('full')
-  const [customAmount, setCustomAmount] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const fullAmount = Number(booking.total_amount) || 0
-  const amount =
-    amountMode === 'full' ? fullAmount
-    : amountMode === 'partial' ? Math.round(fullAmount * 0.5)
-    : Number(customAmount) || 0
+  const amount = computeRequiredAmount(booking.total_amount, settings)
 
-  async function handleGenerate() {
-    if (amount <= 0) {
-      setError('Enter a valid amount.')
-      return
+  async function handleMarkPaid() {
+    try {
+      await markPaymentReceived(booking.id)
+      onPatch({ payment_status: 'paid' })
+    } catch (err) {
+      setError(err.message)
     }
+  }
+
+  // Escape hatch only — normally this happens automatically in the
+  // customer's own booking flow. Useful if a booking was made before
+  // payment collection was turned on, or the customer's step failed.
+  async function handleCreateFallback() {
     setError('')
     setBusy(true)
     try {
@@ -497,9 +499,6 @@ function PaymentRequest({ booking, settings, onPatch }) {
         link = result.link
         razorpayPaymentLinkId = result.id
       } else {
-        // UPI: the QR itself is now shown on the customer's own payment
-        // page (/pay/:bookingId), built from this same deep-link — admin
-        // just shares the page link, doesn't show the QR here.
         link =
           `upi://pay?pa=${encodeURIComponent(settings.upi_id)}&pn=${encodeURIComponent(settings.upi_payee_name || 'Plasma Care')}` +
           `&am=${encodeURIComponent(amount)}&cu=INR&tn=${encodeURIComponent(`Plasma Care ${booking.id.slice(0, 8).toUpperCase()}`)}`
@@ -519,15 +518,6 @@ function PaymentRequest({ booking, settings, onPatch }) {
     }
   }
 
-  async function handleMarkPaid() {
-    try {
-      await markPaymentReceived(booking.id)
-      onPatch({ payment_status: 'paid' })
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
   if (booking.payment_status === 'paid') {
     return (
       <div className="payment-request">
@@ -538,27 +528,14 @@ function PaymentRequest({ booking, settings, onPatch }) {
   }
 
   if (booking.payment_status === 'requested' || booking.payment_status === 'screenshot_uploaded') {
-    const pageUrl = buildPaymentPageUrl(booking.id)
-    const message = encodeURIComponent(`Please complete your payment of ₹${booking.payment_requested_amount} here: ${pageUrl}`)
-    const tenDigitPhone = booking.customer_phone ? booking.customer_phone.replace(/\D/g, '').slice(-10) : ''
     return (
       <div className="payment-request">
-        <span className="detail-row__label">Payment requested — ₹{booking.payment_requested_amount}</span>
+        <span className="detail-row__label">Payment — ₹{booking.payment_requested_amount} ({booking.payment_status === 'screenshot_uploaded' ? 'screenshot uploaded' : 'awaiting payment'})</span>
         <p className="payment-request__hint">
           {booking.payment_method === 'razorpay'
-            ? 'Gateway payment — will be marked paid automatically once Razorpay confirms it.'
-            : 'Customer pays via the QR on their own payment page and uploads a screenshot as proof.'}
+            ? 'Gateway payment — this gets marked paid automatically once Razorpay confirms it.'
+            : 'Customer paid inline during booking and uploaded a screenshot as proof.'}
         </p>
-        <div className="report-share-row__buttons">
-          {tenDigitPhone && (
-            <a className="report-share-btn report-share-btn--whatsapp" href={`https://wa.me/91${tenDigitPhone}?text=${message}`} target="_blank" rel="noreferrer">
-              WhatsApp
-            </a>
-          )}
-          <a className="report-share-btn report-share-btn--telegram" href={`https://t.me/share/url?url=${encodeURIComponent(pageUrl)}`} target="_blank" rel="noreferrer">
-            Telegram
-          </a>
-        </div>
         {booking.payment_screenshot_url ? (
           <div className="payment-request__proof">
             <span className="detail-row__label">Screenshot uploaded by customer</span>
@@ -572,36 +549,22 @@ function PaymentRequest({ booking, settings, onPatch }) {
             <button type="button" className="btn btn--ghost" onClick={handleMarkPaid}>Mark as paid manually</button>
           )
         )}
+        {error && <p className="admin-error">{error}</p>}
       </div>
     )
   }
 
   return (
     <div className="payment-request">
-      <span className="detail-row__label">Request payment</span>
-      <div className="payment-request__amount-row">
-        <button type="button" className={amountMode === 'full' ? 'is-active' : ''} onClick={() => setAmountMode('full')}>
-          Full (₹{fullAmount})
-        </button>
-        <button type="button" className={amountMode === 'partial' ? 'is-active' : ''} onClick={() => setAmountMode('partial')}>
-          Partial (₹{Math.round(fullAmount * 0.5)})
-        </button>
-        <button type="button" className={amountMode === 'custom' ? 'is-active' : ''} onClick={() => setAmountMode('custom')}>
-          Custom
-        </button>
-        {amountMode === 'custom' && (
-          <input
-            type="number"
-            className="payment-request__custom"
-            placeholder="Amount"
-            value={customAmount}
-            onChange={(e) => setCustomAmount(e.target.value)}
-          />
-        )}
-      </div>
+      <span className="detail-row__label">Payment — ₹{amount} due</span>
+      <p className="payment-request__hint">
+        Nothing recorded for this booking yet — normally the customer pays this inline while booking. If this
+        booking was made before payment collection was on, or their step didn't go through, you can create the
+        request here as a one-off.
+      </p>
       {error && <p className="admin-error">{error}</p>}
-      <button type="button" className="btn btn--primary" disabled={busy} onClick={handleGenerate}>
-        {busy ? 'Generating…' : `Generate ${settings.mode === 'razorpay' ? 'payment link' : 'payment request'}`}
+      <button type="button" className="btn btn--ghost" disabled={busy} onClick={handleCreateFallback}>
+        {busy ? 'Creating…' : 'Create payment request'}
       </button>
     </div>
   )

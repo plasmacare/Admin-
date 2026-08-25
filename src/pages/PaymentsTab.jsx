@@ -49,9 +49,9 @@ export default function PaymentsTab() {
         <div>
           <h3>Payment collection</h3>
           <p className="slots-form-card__hint">
-            Off by default. Turn this on when things get busy and you want to collect full/partial/custom payment
-            from specific bookings to prioritize serious customers — this never appears in the normal customer
-            booking flow, it's something you trigger per booking from the Bookings tab.
+            Off by default. When on, every booking collects payment as part of the same booking flow — the customer
+            pays (or scans the QR and uploads a screenshot) right there before they finish booking. No separate
+            step or link-sharing needed afterward.
           </p>
         </div>
         <label className="payments-tab__switch">
@@ -63,7 +63,51 @@ export default function PaymentsTab() {
       {notice && <p className="admin-notice">{notice}</p>}
       {error && <p className="admin-error">{error}</p>}
 
+      <AmountRuleEditor settings={settings} onSave={handleSave} />
       <MethodEditor settings={settings} onSave={handleSave} />
+    </div>
+  )
+}
+
+function AmountRuleEditor({ settings, onSave }) {
+  const [paymentType, setPaymentType] = useState(settings.payment_type || 'full')
+  const [partialPercentage, setPartialPercentage] = useState(settings.partial_percentage ?? 50)
+
+  return (
+    <div className="slots-form-card">
+      <h3>How much to collect</h3>
+      <p className="slots-form-card__hint">
+        This one rule applies to every booking — full amount, or a fixed percentage. There's no per-booking choice
+        anymore; whatever you set here is what every customer sees at checkout.
+      </p>
+      <div className="payments-tab__mode-switch">
+        <button type="button" className={paymentType === 'full' ? 'is-active' : ''} onClick={() => setPaymentType('full')}>
+          Full payment
+        </button>
+        <button type="button" className={paymentType === 'partial' ? 'is-active' : ''} onClick={() => setPaymentType('partial')}>
+          Partial payment
+        </button>
+      </div>
+      {paymentType === 'partial' && (
+        <label className="payments-tab__percentage">
+          Percentage of total to collect upfront
+          <input
+            type="number"
+            min="1"
+            max="99"
+            value={partialPercentage}
+            onChange={(e) => setPartialPercentage(Number(e.target.value))}
+          />
+          <span>%</span>
+        </label>
+      )}
+      <button
+        type="button"
+        className="btn btn--primary"
+        onClick={() => onSave({ payment_type: paymentType, partial_percentage: partialPercentage })}
+      >
+        Save
+      </button>
     </div>
   )
 }
@@ -89,8 +133,9 @@ function MethodEditor({ settings, onSave }) {
       {mode === 'upi' ? (
         <>
           <p className="slots-form-card__hint">
-            A dynamic QR is generated for whatever amount you request per booking — no third-party account needed,
-            payments land directly in this UPI ID.
+            A dynamic QR is generated for the amount due, right on the customer's booking screen — no third-party
+            account needed, payments land directly in this UPI ID. The customer uploads a screenshot as proof, which
+            you'll see in the Bookings tab to confirm.
           </p>
           <input placeholder="Your UPI ID (e.g. name@bank)" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
           <input placeholder="Payee name shown to customer" value={payeeName} onChange={(e) => setPayeeName(e.target.value)} />
@@ -100,7 +145,8 @@ function MethodEditor({ settings, onSave }) {
           <p className="slots-form-card__hint">
             Needs a Razorpay account. Put your Key ID here, and set both <code>RAZORPAY_KEY_ID</code> and{' '}
             <code>RAZORPAY_KEY_SECRET</code> as secrets on the <code>create-payment-link</code> Edge Function — the
-            secret key must never go in this form, only in the Edge Function's secrets.
+            secret key must never go in this form, only in the Edge Function's secrets. Payments are tracked and
+            confirmed automatically — no manual review needed. See the README for the one-time webhook setup.
           </p>
           <input placeholder="Razorpay Key ID (rzp_live_... or rzp_test_...)" value={razorpayKeyId} onChange={(e) => setRazorpayKeyId(e.target.value)} />
         </>
