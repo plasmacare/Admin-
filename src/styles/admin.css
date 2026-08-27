@@ -288,6 +288,23 @@ body { font-family: var(--font-body); color: var(--ink); }
   background: #FDEBEC;
   border-color: #F3C6C6;
 }
+.booking-card__danger-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.booking-card__delete {
+  align-self: flex-start;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--red-600);
+  border: 1px solid var(--red-600);
+  border-radius: 20px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
 
 /* ---------- Report control ---------- */
 .report-control {
