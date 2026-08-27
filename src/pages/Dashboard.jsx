@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchLookups, fetchBookings, updateBookingStatus, updateBookingStaff,
-  updateCallStatus, updateAdminNotes, setSpamFlag, uploadReport, skipReport, resetReport,
+  updateCallStatus, updateAdminNotes, setSpamFlag, uploadReport, skipReport, resetReport, deleteBooking,
   updatePrescriptionNotes, computeStats, computeSpamFlags, STATUSES,
 } from '../lib/adminData'
 import { exportBookingsCsv } from '../lib/csvExport'
@@ -139,6 +139,16 @@ export default function Dashboard() {
     }
   }
 
+  async function handleDelete(booking) {
+    if (!confirm(`Permanently delete this booking (${booking.customer_name || 'no name'})? This can't be undone.`)) return
+    try {
+      await deleteBooking(booking)
+      setBookings((prev) => prev.filter((b) => b.id !== booking.id))
+    } catch (err) {
+      setError('Failed to delete booking: ' + err.message)
+    }
+  }
+
   async function handleReportUpload(booking, file) {
     try {
       const url = await uploadReport(booking.id, file)
@@ -243,6 +253,7 @@ export default function Dashboard() {
             onCallStatus={(s) => handleCallStatus(b, s)}
             onNotes={(n) => handleNotes(b, n)}
             onSpamToggle={() => handleSpamToggle(b)}
+            onDelete={() => handleDelete(b)}
             onReportUpload={(f) => handleReportUpload(b, f)}
             onReportSkip={() => handleReportSkip(b)}
             onReportReset={() => handleReportReset(b)}
@@ -266,7 +277,7 @@ function StatCard({ label, value, accent }) {
 
 function BookingCard({
   booking, lookups, paymentSettings, expanded, onToggle, onStatusChange, onStaffChange,
-  onCallStatus, onNotes, onSpamToggle, onReportUpload, onReportSkip, onReportReset, onPrescriptionNotes,
+  onCallStatus, onNotes, onSpamToggle, onDelete, onReportUpload, onReportSkip, onReportReset, onPrescriptionNotes,
   onBookingPatch,
 }) {
   const { packagesById, testsById } = lookups
@@ -413,9 +424,14 @@ function BookingCard({
             />
           </label>
 
-          <button type="button" className={`spam-toggle${booking.is_spam ? ' spam-toggle--active' : ''}`} onClick={onSpamToggle}>
-            {booking.is_spam ? 'Unmark spam' : 'Mark as spam'}
-          </button>
+          <div className="booking-card__danger-row">
+            <button type="button" className={`spam-toggle${booking.is_spam ? ' spam-toggle--active' : ''}`} onClick={onSpamToggle}>
+              {booking.is_spam ? 'Unmark spam' : 'Mark as spam'}
+            </button>
+            <button type="button" className="booking-card__delete" onClick={onDelete}>
+              Delete booking
+            </button>
+          </div>
         </div>
       )}
     </div>
