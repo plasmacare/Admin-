@@ -176,6 +176,43 @@ supabase secrets set RAZORPAY_KEY_ID=rzp_live_...
 supabase secrets set RAZORPAY_KEY_SECRET=...
 ```
 
+## New in this update — payment collection is now compulsory (when on)
+
+Two fixes here:
+1. **Payment is now mandatory when enabled** — the customer's booking
+   flow no longer has an "I'll pay later" skip option. For UPI, they
+   must upload a payment screenshot before the booking flow finishes.
+   For Razorpay, the flow now polls in the background and only
+   continues once the webhook confirms the payment — there's no way to
+   click past it.
+2. **Fixed a bug where a broken Razorpay setup silently skipped
+   payment entirely** — previously, if creating the Razorpay payment
+   link failed (e.g. `RAZORPAY_KEY_SECRET` not set as an Edge Function
+   secret yet), the customer's booking would complete as if payment
+   collection were off. Now it shows an error with a "Retry payment
+   setup" button instead — payment being enabled means it can't be
+   silently bypassed. If you're testing with a Razorpay test key and
+   see this error, double check both `RAZORPAY_KEY_ID` (in the Payments
+   tab) and `RAZORPAY_KEY_SECRET` (Edge Function secret — never in the
+   form) are set for the **same** Razorpay account/mode (test vs live).
+
+## New in this update — admin notifications, spam booking delete
+
+- **Notifications fixed for mobile Chrome** — "enabled" previously
+  didn't reliably fire once the admin tab was backgrounded, because
+  plain `new Notification()` is unreliable on Android Chrome in that
+  state. Fixed by adding a minimal service worker (`public/sw.js`) and
+  routing notifications through it. No setup needed — it registers
+  itself automatically. If you already had notifications "on" from
+  before this update, reload the page once so the service worker can
+  register.
+- **Delete a booking** — the Bookings tab now has a "Delete booking"
+  button (next to "Mark as spam") for permanently removing fake/spam/
+  test bookings, including their uploaded files. This can't be undone.
+  Run `supabase/allow_booking_delete.sql` once — there was no delete
+  policy on `bookings`/`addresses` before, so deletes would otherwise
+  fail silently.
+
 ## New in this update — payment is now one unitary rule, collected inline during booking
 
 Payment collection changed from "admin manually requests an amount per
