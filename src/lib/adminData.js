@@ -60,6 +60,25 @@ export async function setSpamFlag(id, isSpam) {
   if (error) throw error
 }
 
+/** Permanently removes a fake/spam/test booking. Also cleans up its address row and any uploaded files so nothing orphaned is left in storage. */
+export async function deleteBooking(booking) {
+  await supabase.from('addresses').delete().eq('booking_id', booking.id)
+  if (booking.prescription_url) {
+    const path = booking.prescription_url.split('/prescriptions/')[1]
+    if (path) await supabase.storage.from('prescriptions').remove([decodeURIComponent(path)])
+  }
+  if (booking.report_url) {
+    const path = booking.report_url.split('/reports/')[1]
+    if (path) await supabase.storage.from('reports').remove([decodeURIComponent(path)])
+  }
+  if (booking.payment_screenshot_url) {
+    const path = booking.payment_screenshot_url.split('/payment-proofs/')[1]
+    if (path) await supabase.storage.from('payment-proofs').remove([decodeURIComponent(path)])
+  }
+  const { error } = await supabase.from('bookings').delete().eq('id', booking.id)
+  if (error) throw error
+}
+
 export async function uploadReport(bookingId, file) {
   const path = `${bookingId}/${Date.now()}-${file.name}`
   const { error: uploadError } = await supabase.storage.from('reports').upload(path, file, { upsert: true })
