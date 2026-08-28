@@ -17,6 +17,19 @@ jobs:
         with:
           version: latest
 
+      - name: Locate and normalize supabase folder
+        run: |
+          if [ ! -f supabase/functions/send-push/index.ts ]; then
+            FOUND=$(find . -path "*/supabase/functions/send-push/index.ts" -not -path "./supabase/*" | head -n1)
+            if [ -z "$FOUND" ]; then
+              echo "::error::Could not find supabase/functions/send-push/index.ts anywhere in the repo."
+              exit 1
+            fi
+            SRC_DIR=$(dirname $(dirname $(dirname "$FOUND")))
+            echo "Found supabase folder at $SRC_DIR — copying to repo root"
+            cp -r "$SRC_DIR" ./supabase
+          fi
+
       - name: Deploy send-push function
         run: supabase functions deploy send-push --project-ref "$SUPABASE_PROJECT_REF"
         env:
