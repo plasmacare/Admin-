@@ -1,0 +1,52 @@
+name: Build Admin APK
+
+# Runs on every push to main that touches app code, and can also be
+# triggered manually from the GitHub mobile app (Actions tab -> this
+# workflow -> Run workflow).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: BUILD_TARGET=capacitor npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      # If you added google-services.json as a repo secret (base64-encoded),
+      # this decodes it into place. Skips silently if the secret isn't set,
+      # so push notifications just won't work until you add it.
+      - name: Add google-services.json
+        if: ${{ env.GOOGLE_SERVICES_JSON_B64 != '' }}
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: echo "$GOOGLE_SERVICES_JSON_B64" | base64 -d > android/app/google-services.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: plasma-care-admin-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
