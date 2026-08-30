@@ -43,6 +43,24 @@ through the customer booking site. Uses the **same Supabase project** as
    secret for the customer app's `analyze-prescription` function on the
    same Supabase project, it's shared — no need to set it twice.
 
+## New — Views tab (analytics + hero animation control)
+
+A new **Views** tab in the admin panel shows:
+- **Live now** — visitors currently on the customer site (Supabase
+  Realtime Presence — counts open tabs, drops when a tab closes).
+- **Total / Today / This month / This year** view counts.
+- **Conversion %** — bookings ÷ unique visitor sessions.
+- **Traffic by city** — a map + list, built from each visitor's
+  IP-based location (city-level accuracy, not exact neighbourhood).
+- A control for the customer site's blood-drop hero animation quality
+  (**Off / Low / High**) — changes apply live, no redeploy.
+
+**Setup**: run `supabase/site_settings_and_analytics.sql` once in the
+Supabase SQL editor (adds `site_settings` and `page_views` tables, RLS,
+and two RPC functions the Views tab calls for fast aggregate counts).
+No new admin dependencies — `leaflet` was already in use for the
+booking-address map.
+
 ## Run locally
 
 ```bash
