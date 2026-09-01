@@ -2,38 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0B2545" />
-    <!-- viewport-fit=cover + the safe-area padding in tokens.css keep
-         content from being clipped behind the status/nav bar when this
-         is wrapped in an edge-to-edge Android WebView. -->
-    <meta name="mobile-web-app-capable" content="yes" />
-    <title>Plasma Care — Book Your Test</title>
-    <meta name="description" content="Book pathology tests, home sample collection, and diagnostic services with Plasma Care." />
-    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Plasma Care — Admin</title>
+    <meta name="description" content="Plasma Care admin dashboard — manage bookings, status, and staff assignment." />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/png" href="./src/assets/logo-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // Temporary visible error catcher (mobile has no devtools console access).
-      // Remove this block once the site is confirmed working.
-      function showError(msg) {
-        var el = document.getElementById('root')
-        if (el && !el.innerHTML.trim()) {
-          el.innerHTML = '<pre style="white-space:pre-wrap;padding:16px;color:#C0152F;font-family:monospace;font-size:13px;">' +
-            'DEBUG ERROR:\n' + msg + '</pre>'
-        }
-      }
-      window.addEventListener('error', function (e) {
-        showError(e.message + '\n' + (e.filename || '') + ':' + (e.lineno || ''))
-      })
-      window.addEventListener('unhandledrejection', function (e) {
-        showError('Promise rejection: ' + (e.reason && e.reason.message ? e.reason.message : e.reason))
-      })
-    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -1,5 +1,5 @@
 {
-  "name": "plasma-care-customer",
+  "name": "plasma-care-admin",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -10,12 +10,9 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",
-    "html2canvas": "^1.4.1",
     "leaflet": "^1.9.4",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^7.18.2",
-    "three": "^0.170.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
