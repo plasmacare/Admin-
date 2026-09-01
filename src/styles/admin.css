@@ -1144,3 +1144,8 @@ body { font-family: var(--font-body); color: var(--ink); }
   font-weight: 600;
   color: var(--red-600);
 }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.admin-table th, .admin-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border, #e5e7eb); vertical-align: top; }
+.admin-table th { color: var(--slate, #666); font-weight: 600; }
+.admin-table input[type="text"], .admin-table input:not([type]) { border: 1px solid var(--border, #ddd); border-radius: 6px; padding: 5px 8px; font-size: 13px; }
