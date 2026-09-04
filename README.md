@@ -43,6 +43,42 @@ through the customer booking site. Uses the **same Supabase project** as
    secret for the customer app's `analyze-prescription` function on the
    same Supabase project, it's shared — no need to set it twice.
 
+## New — Generate branded lab report PDFs
+
+Admin can now generate the official-format lab report PDF directly
+from a booking, instead of only manually uploading a report file.
+Inside a booking's detail (Bookings tab), tap **Generate report**:
+- Pick (or add) a doctor — name, qualification, and a pre-saved
+  signature image, reused across every report they sign.
+- Add one or more sections (e.g. "BIOCHEMISTRY") and, within each,
+  test rows: name, H/L/normal flag, value, unit, reference range, and
+  an optional description shown under the result.
+- **Generate report PDF** renders it into the same layout as the
+  official template (barcode, QR code, header badges, signature,
+  footer) and uploads it — this reuses the exact same `report_url` /
+  "Upload report" flow that already existed, so nothing else about
+  report delivery changes.
+
+The registration number is sequential and auto-assigned (starts at
+1047 in the migration below — change the starting value there if your
+real numbering should pick up somewhere else). The QR code on the
+report links to `/report/:bookingId` on the customer site, which shows
+a "Download report" button once it's ready.
+
+**Setup**:
+```bash
+npm install    # adds html2canvas, jsbarcode, jspdf, qrcode
+```
+Run `supabase/lab_reports.sql` once (adds `doctors`, `lab_reports`, and
+the `doctor-signatures` storage bucket).
+
+**Note on visual fidelity**: the layout is a close hand-built match to
+the official template (same header/footer structure, colors, table
+style, barcode/QR placement) rather than a pixel-identical clone of
+the original design file — worth a quick visual compare against a real
+sample report before relying on it, and let me know what's off so it
+can be tightened up.
+
 ## New — Views tab (analytics + hero animation control)
 
 A new **Views** tab in the admin panel shows:
