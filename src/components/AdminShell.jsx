@@ -12,9 +12,8 @@ import PagesTab from '../pages/PagesTab'
 import AnnouncementsTab from '../pages/AnnouncementsTab'
 import PaymentsTab from '../pages/PaymentsTab'
 import ViewsTab from '../pages/ViewsTab'
-import StaffAccessTab from '../pages/StaffAccessTab'
 
-const ALL_TAB_DEFS = [
+const TABS = [
   { key: 'bookings', label: 'Bookings' },
   { key: 'catalog', label: 'Catalog' },
   { key: 'ai-packages', label: 'AI Packages' },
@@ -25,15 +24,8 @@ const ALL_TAB_DEFS = [
 ]
 
 export default function AdminShell() {
-  const { logout, role, visibleTabs, profile } = useAuth()
-
-  // Same login, same panel — the tab list is just filtered by role.
-  // Admin always gets everything plus the Access tab to manage others.
-  const tabs = role === 'admin'
-    ? [...ALL_TAB_DEFS, { key: 'access', label: 'Access' }]
-    : ALL_TAB_DEFS.filter((t) => visibleTabs.includes(t.key))
-
-  const [tab, setTab] = useState(tabs[0]?.key || 'bookings')
+  const { logout } = useAuth()
+  const [tab, setTab] = useState('bookings')
   const seenIds = useRef(new Set())
   const sinceRef = useRef(new Date().toISOString())
 
@@ -86,31 +78,22 @@ export default function AdminShell() {
       <header className="admin-header">
         <div className="admin-header__brand">
           <img src={logoIcon} alt="" />
-          <span>Plasma Care {role === 'admin' ? 'Admin' : (profile?.role || 'Staff')}</span>
+          <span>Plasma Care Admin</span>
         </div>
         <button className="btn btn--ghost" onClick={logout}>Logout</button>
       </header>
 
       <NotificationBanner />
 
-      {tabs.length === 0 ? (
-        <p style={{ padding: 24, color: '#666' }}>
-          No tabs assigned to your account yet. Ask an admin to grant access.
-        </p>
-      ) : (
-        <>
-          <Tabs tabs={tabs} active={tab} onChange={setTab} />
+      <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
-          {tab === 'bookings' && <Dashboard />}
-          {tab === 'catalog' && <CatalogTab />}
-          {tab === 'ai-packages' && <AiPackagesTab />}
-          {tab === 'pages' && <PagesTab />}
-          {tab === 'announcements' && <AnnouncementsTab />}
-          {tab === 'payments' && <PaymentsTab />}
-          {tab === 'views' && <ViewsTab />}
-          {tab === 'access' && role === 'admin' && <StaffAccessTab />}
-        </>
-      )}
+      {tab === 'bookings' && <Dashboard />}
+      {tab === 'catalog' && <CatalogTab />}
+      {tab === 'ai-packages' && <AiPackagesTab />}
+      {tab === 'pages' && <PagesTab />}
+      {tab === 'announcements' && <AnnouncementsTab />}
+      {tab === 'payments' && <PaymentsTab />}
+      {tab === 'views' && <ViewsTab />}
     </div>
   )
 }
